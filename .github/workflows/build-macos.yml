@@ -71,7 +71,7 @@ jobs:
           shasum -a 256 "${images[0]}" > "$bundle_directory/SHA256SUMS.txt"
 
       - name: Upload DMG
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: MAD-Toolbox-macOS-Apple-Silicon-${{ matrix.edition }}
           path: |

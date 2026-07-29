@@ -67,7 +67,7 @@ jobs:
           npx tauri build --target x86_64-pc-windows-msvc --config $Config --no-sign --ci
 
       - name: Upload installer
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: MAD-Toolbox-Windows-x64-${{ matrix.edition }}
           path: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe

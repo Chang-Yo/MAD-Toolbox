@@ -406,6 +406,7 @@ fn resolve_tool(app: &AppHandle, tool: &ToolName) -> Option<(PathBuf, bool)> {
     }
 }
 
+#[cfg(any(not(target_os = "windows"), test))]
 fn musicdl_launcher_python(script: &str) -> Option<PathBuf> {
     // pipx can generate a shell/Python polyglot launcher. In that form the
     // shebang is /bin/sh and the real virtualenv interpreter is quoted on the

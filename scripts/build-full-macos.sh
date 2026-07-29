@@ -4,7 +4,6 @@ set -eu
 project_directory="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 app="$project_directory/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/MAD Toolbox.app"
 dmg_directory="$project_directory/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg"
-dmg="$dmg_directory/MAD Toolbox_0.4.9_aarch64.dmg"
 yt_dlp="$project_directory/src-tauri/binaries/yt-dlp-aarch64-apple-darwin"
 staging_directory="$(mktemp -d /private/tmp/mad-toolbox-full-dmg.XXXXXX)"
 
@@ -14,6 +13,8 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 cd "$project_directory"
+version="$(node -p "require('./package.json').version")"
+dmg="$dmg_directory/MAD Toolbox_${version}_aarch64.dmg"
 npm run verify:bundled
 npm exec tauri -- build \
   --target aarch64-apple-darwin \

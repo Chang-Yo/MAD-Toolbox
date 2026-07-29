@@ -163,6 +163,13 @@ The preparation script downloads missing official sidecars, verifies both
 archive and binary SHA-256 values, and packages them into the installer. The
 same Full/Lite jobs are available in `.github/workflows/build-windows.yml`.
 
+GitHub Actions can also build both Windows installers and Apple Silicon macOS
+DMGs. Open **Actions → Build Windows x64 → Run workflow** or **Actions → Build
+macOS Apple Silicon → Run workflow**. Both workflows also run on `v*` tags and
+upload Full and Lite as separate artifacts with 30-day retention. The macOS
+workflow uses an arm64 runner, runs the backend tests and pinned tool checks,
+validates the resulting DMG, and includes a SHA-256 checksum.
+
 More documentation:
 
 - [Windows build, security and compatibility](docs/WINDOWS.md)

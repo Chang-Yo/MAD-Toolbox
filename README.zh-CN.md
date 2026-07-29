@@ -92,6 +92,13 @@ Windows 构建脚本会下载 Git 仓库未保存的大型 sidecar，先校验�
 SHA-256，再生成中英双语 NSIS 安装包。Windows 安装包可以不购买证书直接
 使用，但未签名版本可能触发 SmartScreen 的“未知发布者”提示。
 
+GitHub Actions 也可以构建 Windows 安装包和 Apple Silicon macOS DMG。
+打开 **Actions → Build Windows x64 → Run workflow** 或 **Actions →
+Build macOS Apple Silicon → Run workflow**，即可同时构建 Full 和 Lite。
+两个工作流也会在推送 `v*` 标签时自动运行，并将不同版本作为保留 30 天的
+独立 artifact 上传。macOS 工作流会在 arm64 runner 上运行后端测试和内置
+工具校验，验证最终 DMG，并生成 SHA-256 校验文件。
+
 ## 文档
 
 - [Windows 兼容性、构建与安全说明](docs/WINDOWS.md)

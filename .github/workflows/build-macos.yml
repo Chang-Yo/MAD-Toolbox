@@ -1,0 +1,81 @@
+name: Build macOS Apple Silicon
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: macOS Apple Silicon ${{ matrix.edition }}
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        edition: [Full, Lite]
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+
+      - name: Confirm Apple Silicon runner
+        run: test "$(uname -m)" = "arm64"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: aarch64-apple-darwin
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: macos-arm64-${{ matrix.edition }}
+
+      - name: Install frontend packages
+        run: npm ci
+
+      - name: Check frontend
+        run: npm run check
+
+      - name: Test backend
+        run: cargo test --manifest-path src-tauri/Cargo.toml --target aarch64-apple-darwin
+
+      - name: Build Lite DMG
+        if: matrix.edition == 'Lite'
+        run: npm run tauri:build:lite -- --ci
+
+      - name: Build Full DMG
+        if: matrix.edition == 'Full'
+        run: npm run tauri:build:full
+
+      - name: Verify DMG and create checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundle_directory="src-tauri/target/aarch64-apple-darwin/release/bundle/dmg"
+          images=("$bundle_directory"/*.dmg)
+          test -f "${images[0]}"
+          test "${#images[@]}" -eq 1
+          hdiutil verify "${images[0]}"
+          shasum -a 256 "${images[0]}" > "$bundle_directory/SHA256SUMS.txt"
+
+      - name: Upload DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: MAD-Toolbox-macOS-Apple-Silicon-${{ matrix.edition }}
+          path: |
+            src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+            src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30

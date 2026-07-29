@@ -1,81 +1,52 @@
 <p align="center">
-  <img src="assets/mad-toolbox-icon.png" width="128" alt="MAD Toolbox icon">
+  <img src="assets/mad-toolbox-icon.png" width="128" alt="MAD Toolbox 图标">
 </p>
 
 <h1 align="center">MAD Toolbox</h1>
 
-<p align="center">
-  Turn BBDown, yt-dlp, FFmpeg and MediaInfo command-line workflows into a clear desktop GUI.
-</p>
+<p align="center">把常用媒体命令行工具变成简洁、清晰的桌面 GUI。</p>
 
 <p align="center">
-  <a href="README.zh-CN.md">简体中文</a> ·
+  <a href="README.en.md">English</a> ·
   <a href="https://github.com/MAD-Producer/MAD-Toolbox/actions/workflows/check.yml"><img src="https://github.com/MAD-Producer/MAD-Toolbox/actions/workflows/check.yml/badge.svg" alt="Checks"></a> ·
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
 </p>
 
-MAD Toolbox is an open-source Windows and macOS GUI for BBDown, yt-dlp,
-FFmpeg, MediaInfo and an optional external musicdl installation. Supported
-targets are Windows 10 22H2/Windows 11 x64 (`x86_64-pc-windows-msvc`) and
-Apple Silicon macOS 12 or newer.
+MAD Toolbox 是一个面向 Windows 和 macOS 的开源媒体工具箱。它把表单和
+GUI 选项转换为 BBDown、yt-dlp、FFmpeg、MediaInfo 等工具的参数数组，不
+经过 Shell 执行，并在独立的日志终端中显示经过脱敏的命令和运行输出。
 
-The application turns form values into argument arrays, displays a redacted
-command preview, runs the selected CLI without a shell, and streams stdout and
-stderr into an integrated log console.
+当前支持 Windows 10 22H2 / Windows 11 x64，以及 macOS 12 以上的 Apple
+Silicon 设备。暂不提供 Windows 32 位和 ARM64 安装包。
 
-## Features
+## 主要功能
 
-- BBDown Bilibili downloads with mandatory in-app QR login, account-aware
-  quality selection, beginner presets and advanced CLI parameters.
-- yt-dlp downloads with YouTube reachability testing, global-proxy guidance,
-  explicit HTTP/HTTPS/SOCKS proxy settings and advanced format controls.
-- FFmpeg media processing with drag-and-drop files or folders, localized
-  MediaInfo inspection, remuxing, stream extraction, ASS/SRT subtitles,
-  conversion, bitrate/frame-rate/scaling controls, GIFs and image sequences.
-- Smart Premiere Pro compatibility mode that prefers stream-copy MP4 and only
-  transcodes when compatibility requires it.
-- Persistent last-used settings and multiple encrypted templates per feature.
-- Background jobs that survive page navigation, color logs, cancellation and
-  redacted per-task diagnostic ZIP export.
-- Full and Lite distributions with per-tool bundled/system/custom executable
-  selection.
+- 哔哩哔哩下载：必须先在软件内使用二维码登录；提供最高规格、音频、封面、
+  字幕等简易模式，同时尽量覆盖 BBDown 高级参数。
+- 网络视频下载：使用 yt-dlp，自动测试 YouTube 连通性，提示开启全局代理或
+  填写 HTTP、HTTPS、SOCKS 代理，并提供格式、字幕、Cookie 等高级设置。
+- 媒体处理：支持文件和目录拖拽、中文 MediaInfo 信息、转换、重新封装、
+  视频/音频/字幕抽流、ASS/SRT、GIF、序列帧以及码率、帧率、尺寸、裁切、
+  旋转、速度、像素格式和音频参数。
+- PR 智能兼容：优先输出 MP4，能直接复制媒体流时使用 `-c copy`，无法兼容
+  时才转码；忽略作为封面的附加图片轨道。
+- 音乐下载：检测用户自行安装的 Python 3 和 musicdl 后启用，不在安装包内
+  捆绑 musicdl。
+- 任务中心：任务切换页面后继续运行，支持取消、彩色日志，以及为每个任务
+  导出经过脱敏的诊断 ZIP。
+- 设置模板：每个功能支持多个模板并自动恢复上次设置；Cookie 等敏感字段
+  使用系统凭据管理器和加密存储。
 
-BBDown login is kept inside the application: MAD Toolbox displays BBDown's
-generated QR image in the login page and unlocks downloads only after BBDown
-has returned a valid session. The session credential is redacted from logs,
-stored in the operating system credential manager and automatically passed to
-later BBDown jobs.
-Available quality, premium content, HDR, Dolby Vision and high-bitrate streams
-depend on the logged-in Bilibili account's membership, content and region
-permissions. "Highest quality" means the highest quality available to that
-account.
+下载规格、会员内容、HDR、杜比视界和高码率资源取决于当前登录账号的会员、
+内容及地区权限。“最高规格”指该账号实际能够访问的最高规格。请仅下载自己
+拥有或获得授权的内容，本项目不会绕过 DRM。
 
-A saved default output directory can be selected in Settings and is applied to
-BBDown, yt-dlp, FFmpeg and musicdl tasks unless a task overrides it.
+## Full 与 Lite
 
-The media page includes a beginner-friendly intelligent Premiere Pro workflow
-and professional FFmpeg controls for codecs, bitrate/CRF, frame rate, scaling,
-cropping, rotation, speed, pixel formats, audio bitrate/sample rate/channels,
-loudness normalization, GIF creation and image-sequence export. Output
-directories can be selected in Windows Explorer or Finder.
+Full 版内置经过固定版本和 SHA-256 校验的 BBDown、FFmpeg/ffprobe、
+MediaInfo CLI、yt-dlp 和 Deno，不需要用户另外安装这些命令行工具。
 
-The intelligent Premiere Pro workflow prefers MP4 for H.264 and HEVC sources,
-copying compatible streams whenever possible. It falls back to MOV for codecs
-such as ProRes or when a high-quality compatibility transcode is required.
-
-## Distribution modes
-
-### Lite
-
-The Lite build always includes BBDown. On macOS, install the remaining
-dependencies with Homebrew:
-
-```bash
-brew install ffmpeg yt-dlp media-info deno
-```
-
-On Windows, use the official download links shown in Settings or install the
-tools with WinGet:
+Lite 版只内置 BBDown。Windows 可通过 WinGet 安装其余依赖：
 
 ```powershell
 winget install --id Gyan.FFmpeg -e
@@ -84,122 +55,60 @@ winget install --id MediaArea.MediaInfo.CLI -e
 winget install --id DenoLand.Deno -e
 ```
 
-### Full
-
-The Full build bundles audited, version-pinned binaries for BBDown,
-FFmpeg/ffprobe, MediaInfo CLI, yt-dlp and Deno. It needs no separate CLI
-installation and uses the same GUI and adapter code as the Lite build.
-
-musicdl is deliberately excluded from both distributions because upstream
-prohibits bundling without explicit permission. Python 3 is also an external
-prerequisite. Install both with:
+macOS 可使用 Homebrew：
 
 ```bash
-brew install python pipx
-pipx ensurepath
-pipx install musicdl
+brew install ffmpeg yt-dlp media-info deno
 ```
 
-On Windows:
+Full 和 Lite 共用同一套功能页面。用户可以在设置中让每个工具优先使用内置
+版本、系统最新版或自定义路径。
+
+musicdl 因许可证要求不随软件分发。安装方法、USTC/TUNA pip 镜像配置以及
+依赖检测均已放在音乐下载页面。
+
+## 从源码构建
+
+需要 Node.js 22、Rust stable 和对应平台的原生构建工具。
+
+Windows x64：
 
 ```powershell
-winget install --id Python.Python.3.13 -e
-py -m pip install --user pipx
-py -m pipx ensurepath
-py -m pipx install musicdl
-```
-
-For mainland-China networks, the GUI provides copyable USTC and TUNA PyPI
-mirror commands plus a command to restore the official PyPI source.
-
-After installation, restart or use the music page's dependency refresh button.
-The GUI supports keyword search with native result selection, playlist URLs,
-all music source names and all advanced musicdl CLI JSON options.
-
-## Development
-
-macOS prerequisites:
-
-- Apple Silicon Mac
-- Node.js 22 or newer
-- Rust toolchain
-- Xcode Command Line Tools
-
-Install JavaScript packages and run:
-
-```bash
 npm install
-npm run tauri:dev
-```
-
-Create an Apple Silicon Lite build:
-
-```bash
-npm run tauri:build:lite
-```
-
-Verify every pinned Full artifact before packaging, then create the Full build:
-
-```bash
-npm run verify:bundled
-npm run tauri:build:full
-```
-
-Windows x64 prerequisites:
-
-- Windows 10 22H2 or Windows 11 x64
-- Node.js 22 or newer
-- Rust stable with the MSVC x64 target
-- Visual Studio 2022 Build Tools with Desktop development with C++
-
-Create Windows NSIS installers:
-
-```powershell
 npm run tauri:build:windows:lite
 npm run tauri:build:windows:full
 ```
 
-The preparation script downloads missing official sidecars, verifies both
-archive and binary SHA-256 values, and packages them into the installer. The
-same Full/Lite jobs are available in `.github/workflows/build-windows.yml`.
+Apple Silicon macOS：
 
-GitHub Actions can also build both Windows installers and Apple Silicon macOS
-DMGs. Open **Actions → Build Windows x64 → Run workflow** or **Actions → Build
-macOS Apple Silicon → Run workflow**. Both workflows also run on `v*` tags and
-upload Full and Lite as separate artifacts with 30-day retention. The macOS
-workflow uses an arm64 runner, runs the backend tests and pinned tool checks,
-validates the resulting DMG, and includes a SHA-256 checksum.
+```bash
+npm install
+npm run tauri:build:lite
+npm run verify:bundled
+npm run tauri:build:full
+```
 
-More documentation:
+Windows 构建脚本会下载 Git 仓库未保存的大型 sidecar，先校验压缩包及程序
+SHA-256，再生成中英双语 NSIS 安装包。Windows 安装包可以不购买证书直接
+使用，但未签名版本可能触发 SmartScreen 的“未知发布者”提示。
 
-- [Windows build, security and compatibility](docs/WINDOWS.md)
-- [Lite dependency installation](docs/DEPENDENCIES.md)
-- [Full build and redistribution policy](docs/FULL_BUILD.md)
-- [Third-party notices](THIRD_PARTY_NOTICES.md)
+GitHub Actions 也可以构建 Windows 安装包和 Apple Silicon macOS DMG。
+打开 **Actions → Build Windows x64 → Run workflow** 或 **Actions →
+Build macOS Apple Silicon → Run workflow**，即可同时构建 Full 和 Lite。
+两个工作流也会在推送 `v*` 标签时自动运行，并将不同版本作为保留 30 天的
+独立 artifact 上传。macOS 工作流会在 arm64 runner 上运行后端测试和内置
+工具校验，验证最终 DMG，并生成 SHA-256 校验文件。
 
-No paid Apple certificate is required for development. Release builds use a
-free ad-hoc signature, so users may need to approve the app once in System
-Settings > Privacy & Security.
+## 文档
 
-No paid Windows certificate is required either. The generated NSIS installer
-is usable without signing, but Windows SmartScreen may show an unknown
-publisher warning; users must explicitly choose to continue.
+- [Windows 兼容性、构建与安全说明](docs/WINDOWS.md)
+- [Lite 版依赖安装](docs/DEPENDENCIES.md)
+- [Full 版打包和再分发规则](docs/FULL_BUILD.md)
+- [第三方软件署名和许可证](THIRD_PARTY_NOTICES.md)
+- [参与贡献](CONTRIBUTING.md)
+- [安全问题报告](SECURITY.md)
 
-## BBDown notice
+## 许可证
 
-BBDown is bundled because it is not available as a Homebrew formula. The
-upstream repository was archived in May 2026 and is no longer maintained. This
-project pins the upstream 1.6.3 Apple Silicon and Windows x64 releases and
-preserves its original MIT license and author attribution.
-
-Only download media that you own or are authorized to use. MAD Toolbox does
-not bypass DRM.
-
-## License
-
-MAD Toolbox source code is licensed under the MIT License. Bundled tools keep
-their own licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
-
-Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before
-submitting changes and report vulnerabilities according to
-[SECURITY.md](SECURITY.md).
+MAD Toolbox 源代码使用 MIT License。所有内置工具保留各自的许可证、
+版权和署名，详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

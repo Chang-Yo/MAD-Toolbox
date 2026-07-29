@@ -1,0 +1,50 @@
+# Full build policy
+
+The macOS Full build uses `src-tauri/tauri.full.conf.json`. The Windows Full
+build uses `src-tauri/tauri.windows.full.conf.json`.
+
+Required macOS architecture-suffixed files:
+
+```text
+src-tauri/binaries/BBDown-aarch64-apple-darwin
+src-tauri/binaries/ffmpeg-aarch64-apple-darwin
+src-tauri/binaries/ffprobe-aarch64-apple-darwin
+src-tauri/binaries/mediainfo-aarch64-apple-darwin
+src-tauri/binaries/yt-dlp-aarch64-apple-darwin
+src-tauri/binaries/deno-aarch64-apple-darwin
+```
+
+Required Windows x64 architecture-suffixed files:
+
+```text
+src-tauri/binaries/BBDown-x86_64-pc-windows-msvc.exe
+src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe
+src-tauri/binaries/ffprobe-x86_64-pc-windows-msvc.exe
+src-tauri/binaries/mediainfo-x86_64-pc-windows-msvc.exe
+src-tauri/binaries/yt-dlp-x86_64-pc-windows-msvc.exe
+src-tauri/binaries/deno-x86_64-pc-windows-msvc.exe
+src-tauri/resources/MediaInfo-LIBCURL.DLL
+```
+
+Every tool must be version-pinned in `third_party/sources.json` or
+`third_party/windows-sources.json`, accompanied by its exact license files and
+verified with SHA-256 before packaging.
+
+For FFmpeg, publish the corresponding source revision, build scripts,
+configure flags and configure output. Never package an `--enable-nonfree`
+build.
+
+The macOS tool pack and reproducible arm64 build procedure are pinned in
+`third_party/sources.json` and `third_party/build/`.
+
+The Windows tool pack is pinned in `third_party/windows-sources.json`. Run
+`scripts/prepare-windows-tools.ps1 -Edition Full` to download missing official
+artifacts and verify archive and binary hashes, then run
+`scripts/verify-windows-tools.ps1 -Edition Full` before packaging. The exact
+FFmpeg source revision and BtbN build-recipe snapshot under
+`third_party/source_archives/` are copied into the Windows installer.
+
+The Windows Lite installer uses `src-tauri/tauri.windows.lite.conf.json` and
+contains BBDown only. Full and Lite share the same application code; runtime
+tool-source settings decide whether bundled, system or custom executables are
+used.

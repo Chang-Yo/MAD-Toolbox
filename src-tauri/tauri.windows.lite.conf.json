@@ -1,0 +1,41 @@
+{
+  "app": {
+    "macOSPrivateApi": false,
+    "windows": [
+      {
+        "title": "MAD Toolbox",
+        "width": 1120,
+        "height": 760,
+        "minWidth": 820,
+        "minHeight": 620,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": true,
+        "zoomHotkeysEnabled": true
+      }
+    ]
+  },
+  "bundle": {
+    "targets": ["nsis"],
+    "externalBin": ["binaries/BBDown"],
+    "resources": {
+      "../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md",
+      "../third_party/windows-sources.json": "third_party/windows-sources.json",
+      "../third_party/licenses/BBDown-MIT.txt": "licenses/BBDown-MIT.txt",
+      "resources/musicdl-adapter.py": "musicdl-adapter.py"
+    },
+    "windows": {
+      "webviewInstallMode": {
+        "type": "embedBootstrapper",
+        "silent": true
+      },
+      "allowDowngrades": false,
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": ["SimpChinese", "English"],
+        "displayLanguageSelector": false,
+        "compression": "lzma"
+      }
+    }
+  }
+}

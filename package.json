@@ -1,0 +1,37 @@
+{
+  "name": "mad-toolbox",
+  "private": true,
+  "version": "0.5.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build:lite": "tauri build --target aarch64-apple-darwin",
+    "tauri:build:full": "sh scripts/build-full-macos.sh",
+    "tauri:build:windows:lite": "powershell -ExecutionPolicy Bypass -File scripts/build-windows.ps1 -Edition Lite",
+    "tauri:build:windows:full": "powershell -ExecutionPolicy Bypass -File scripts/build-windows.ps1 -Edition Full",
+    "check": "tsc --noEmit",
+    "verify:bundled": "sh scripts/verify-bundled-tools.sh",
+    "verify:windows:lite": "powershell -ExecutionPolicy Bypass -File scripts/verify-windows-tools.ps1 -Edition Lite",
+    "verify:windows:full": "powershell -ExecutionPolicy Bypass -File scripts/verify-windows-tools.ps1 -Edition Full"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-dialog": "^2.0.0",
+    "@tauri-apps/plugin-opener": "^2.0.0",
+    "lucide-react": "^0.468.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "~5.7.2",
+    "vite": "^6.0.3"
+  }
+}

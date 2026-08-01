@@ -2,6 +2,14 @@
 
 All notable changes to MAD Toolbox are documented here.
 
+## 0.5.8 - 2026-08-01
+
+- Fixed bundled BBDown login state on macOS and Windows when an older GUI left
+  a temporary QR ticket in `BBDown.data`. The bundled runtime now keeps one
+  native BBDown state directory and lets BBDown recreate that file normally.
+- Added a small login-state indicator without parsing or storing credentials in
+  the GUI.
+
 ## 0.5.7 - 2026-08-01
 
 - Fixed bundled BBDown login state on macOS and Windows by running it from a

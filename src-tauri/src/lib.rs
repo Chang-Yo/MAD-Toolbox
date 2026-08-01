@@ -444,6 +444,34 @@ fn bundled_binary(app: &AppHandle, name: &str) -> Option<PathBuf> {
     candidates.into_iter().find(|path| path.is_file())
 }
 
+/// BBDown's original CLI keeps web/TV login state beside the executable. This
+/// small shape check only prevents an old GUI QR ticket from being mistaken for
+/// a native state file; BBDown remains the only code that reads, validates, and
+/// writes the credentials.
+fn bbdown_state_file_is_native(path: &Path, filename: &str) -> bool {
+    let Ok(contents) = std::fs::read_to_string(path) else {
+        return false;
+    };
+    let contents = contents.to_ascii_lowercase();
+    match filename {
+        "BBDown.data" => {
+            contents.contains("sessdata=")
+                && (contents.contains("bili_jct=") || contents.contains("dedeuserid="))
+        }
+        "BBDownTV.data" | "BBDownApp.data" => contents.contains("access_token="),
+        _ => false,
+    }
+}
+
+fn bbdown_has_native_session(executable: &Path) -> bool {
+    let Some(parent) = executable.parent() else {
+        return false;
+    };
+    ["BBDown.data", "BBDownTV.data", "BBDownApp.data"]
+        .iter()
+        .any(|filename| bbdown_state_file_is_native(&parent.join(filename), filename))
+}
+
 fn resolve_tool(app: &AppHandle, tool: &ToolName) -> Option<(PathBuf, bool)> {
     let bundled = bundled_binary(app, tool.executable()).map(|path| (path, true));
     let system = find_distinct_system_binary(
@@ -451,7 +479,12 @@ fn resolve_tool(app: &AppHandle, tool: &ToolName) -> Option<(PathBuf, bool)> {
         bundled.as_ref().map(|(path, _)| path.as_path()),
     )
     .map(|path| (path, false));
-    if matches!(
+
+    if matches!(tool, ToolName::Bbdown) {
+        // BBDown owns its adjacent BBDown.data file. Keep the bundled binary
+        // and its native state together even when other tools use System mode.
+        bundled.or(system)
+    } else if matches!(
         load_app_settings(app).dependency_preference,
         DependencyPreference::System
     ) {
@@ -766,12 +799,25 @@ fn prepare_bbdown_runtime(app: &AppHandle, bundled: &Path) -> Result<PathBuf, St
         "BBDown.archives",
     ] {
         let target = runtime_dir.join(filename);
-        if target.is_file() {
+        let native_state_file =
+            matches!(filename, "BBDown.data" | "BBDownTV.data" | "BBDownApp.data");
+        if target.is_file()
+            && (!native_state_file || bbdown_state_file_is_native(&target, filename))
+        {
             continue;
+        }
+        // An older GUI version could leave a temporary QR ticket in
+        // BBDown.data. Remove only that invalid state; valid native files are
+        // never touched and BBDown still owns all login writes.
+        if native_state_file && target.is_file() {
+            let _ = std::fs::remove_file(&target);
         }
         for directory in &legacy_dirs {
             let source = directory.join(filename);
-            if source.is_file() && !same_binary(&source, &target) {
+            if source.is_file()
+                && !same_binary(&source, &target)
+                && (!native_state_file || bbdown_state_file_is_native(&source, filename))
+            {
                 let _ = std::fs::copy(&source, &target);
                 if target.is_file() {
                     break;
@@ -1323,6 +1369,24 @@ async fn dependency_status(app: AppHandle) -> Vec<DependencyStatus> {
         });
     }
     statuses
+}
+
+#[tauri::command]
+fn bbdown_auth_status(app: AppHandle) -> Result<String, String> {
+    let Some((resolved, bundled)) = resolve_tool(&app, &ToolName::Bbdown) else {
+        return Ok("unknown".into());
+    };
+    let executable = if bundled {
+        prepare_bbdown_runtime(&app, &resolved)?
+    } else {
+        resolved
+    };
+    Ok(if bbdown_has_native_session(&executable) {
+        "authenticated"
+    } else {
+        "unknown"
+    }
+    .into())
 }
 
 #[tauri::command]
@@ -2684,6 +2748,7 @@ pub fn run() {
             app_settings,
             save_app_settings,
             dependency_status,
+            bbdown_auth_status,
             export_job_log,
             export_job_diagnostics,
             ffmpeg_encoders,
@@ -2704,12 +2769,46 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{
-        codecs_from_probe, is_text_subtitle_file, media_info_summary, musicdl_launcher_python,
-        pr_audio_container, pr_container, redact_output_line, sanitize_diagnostic_text,
-        streams_from_probe, strip_ansi_codes,
+        bbdown_has_native_session, bbdown_state_file_is_native, codecs_from_probe,
+        is_text_subtitle_file, media_info_summary, musicdl_launcher_python, pr_audio_container,
+        pr_container, redact_output_line, sanitize_diagnostic_text, streams_from_probe,
+        strip_ansi_codes,
     };
     use serde_json::json;
+    use std::fs;
     use std::path::Path;
+    use uuid::Uuid;
+
+    #[test]
+    fn detects_native_bbdown_session_next_to_runtime() {
+        let directory = std::env::temp_dir().join(format!("mad-toolbox-bbdown-{}", Uuid::new_v4()));
+        fs::create_dir_all(&directory).unwrap();
+        let executable = directory.join("BBDown");
+        fs::write(
+            directory.join("BBDown.data"),
+            "DedeUserID=123;SESSDATA=sample;bili_jct=csrf;",
+        )
+        .unwrap();
+        assert!(bbdown_has_native_session(&executable));
+
+        fs::write(
+            directory.join("BBDown.data"),
+            "ticket=temporary;gourl=login;",
+        )
+        .unwrap();
+        assert!(!bbdown_has_native_session(&executable));
+        assert!(!bbdown_state_file_is_native(
+            &directory.join("BBDown.data"),
+            "BBDown.data"
+        ));
+
+        fs::write(directory.join("BBDownTV.data"), "access_token=sample").unwrap();
+        assert!(bbdown_state_file_is_native(
+            &directory.join("BBDownTV.data"),
+            "BBDownTV.data"
+        ));
+        fs::remove_dir_all(directory).unwrap();
+    }
 
     #[test]
     fn redacts_bilibili_credentials_from_process_output() {

@@ -1,6 +1,6 @@
 # Windows x64 build
 
-MAD Toolbox 0.5.7 targets Windows 10 22H2 and Windows 11 on Intel/AMD x64
+MAD Toolbox 0.5.8 targets Windows 10 22H2 and Windows 11 on Intel/AMD x64
 processors (`x86_64-pc-windows-msvc`). ARM64 and 32-bit x86 installers are not
 currently produced.
 
@@ -43,11 +43,12 @@ The output is a per-user bilingual NSIS installer.
 ## CLI state and diagnostics
 
 The bundled BBDown is copied to the per-user application data directory at
-first use. Its native `BBDown.data` is kept beside that runtime copy, so login
-and download always use the same file on macOS and Windows. A legacy
-`BBDown.data` beside an older bundled executable is migrated once when the new
-location is empty. Running QR login again lets BBDown overwrite that file with
-the newly returned session, exactly as its original CLI does.
+first use, with its native `BBDown.data` kept beside that runtime copy. Login
+and later downloads always run this same bundled executable, so BBDown reads
+and writes its own file exactly as in the original CLI. An old temporary QR
+ticket is ignored once and a valid native file beside an older bundled
+executable can be migrated. The GUI does not parse, encrypt, or inject the
+credentials.
 
 MAD Toolbox does not parse, encrypt or inject this native state and does not
 use Credential Manager. Templates are ordinary WebView application data.

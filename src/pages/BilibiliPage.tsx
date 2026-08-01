@@ -90,7 +90,7 @@ export function BilibiliPage({
       button: "扫码登录"
     },
     authenticated: {
-      title: "已检测到哔哩哔哩登录",
+      title: "已检测到 BBDown 登录状态",
       hint: "BBDown 已取得账号权限，最终画质仍取决于账号和视频本身。",
       button: "重新登录"
     },

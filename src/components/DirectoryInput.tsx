@@ -22,7 +22,12 @@ export function DirectoryInput({ value, onChange, placeholder }: DirectoryInputP
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
       />
-      <button className="icon-button" type="button" title={`在${fileManagerName}中选择`} onClick={() => void choose()}>
+      <button
+        className="icon-button"
+        type="button"
+        title={`在${fileManagerName}中选择`}
+        onClick={() => void choose()}
+      >
         <FolderOpen size={16} />
       </button>
     </div>

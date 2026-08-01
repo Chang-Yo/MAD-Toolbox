@@ -39,7 +39,11 @@ export function CommandBar({ command, disabled, disabledReason, onRun }: Command
         onClick={() => void copyCommand()}
         disabled={!command}
       >
-        {copyState === "copied" ? <Check className="copy-success-icon" size={16} /> : <Copy size={16} />}
+        {copyState === "copied" ? (
+          <Check className="copy-success-icon" size={16} />
+        ) : (
+          <Copy size={16} />
+        )}
       </button>
       <button
         className="primary-button"

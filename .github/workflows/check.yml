@@ -16,8 +16,6 @@ jobs:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
       - uses: actions/setup-node@v5
         with:
           node-version: 22
@@ -27,11 +25,8 @@ jobs:
         with:
           workspaces: src-tauri
       - run: npm ci
-      - name: Check changed-file formatting
+      - name: Check formatting
         run: npm run format:check
-        env:
-          FORMAT_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
-          FORMAT_ALL: ${{ github.event_name == 'workflow_dispatch' && '1' || '0' }}
       - run: npm run check
       - run: npm run build
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check

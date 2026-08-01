@@ -13,11 +13,7 @@ import {
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import {
-  buildMusicdlArgs,
-  commandPreview,
-  type MusicdlCliOptions
-} from "../lib/commands";
+import { buildMusicdlArgs, commandPreview, type MusicdlCliOptions } from "../lib/commands";
 import type {
   DependencyStatus,
   MusicdlSearchRequest,
@@ -31,11 +27,7 @@ import { CommandBar } from "../components/CommandBar";
 import { DirectoryInput } from "../components/DirectoryInput";
 import { Field, TextArea, TextInput } from "../components/Field";
 import { TemplateManager } from "../components/TemplateManager";
-import {
-  isWindows,
-  musicdlInstallCommand,
-  pipCommand
-} from "../lib/platform";
+import { isWindows, musicdlInstallCommand, pipCommand } from "../lib/platform";
 
 interface MusicPageProps {
   dependency: DependencyStatus | null;
@@ -283,21 +275,15 @@ export function MusicPage({
   }, [defaultOutputDirectory]);
 
   useEffect(() => {
-    const unlistenResult = listen<MusicdlSearchResponse>(
-      "musicdl-search-result",
-      ({ payload }) => {
-        if (
-          activeSearchJobId.current &&
-          payload.sessionId !== activeSearchJobId.current
-        ) {
-          return;
-        }
-        activeSearchJobId.current = payload.sessionId;
-        setSearchResponse(payload);
-        setSelected([]);
-        setConfigurationError(null);
+    const unlistenResult = listen<MusicdlSearchResponse>("musicdl-search-result", ({ payload }) => {
+      if (activeSearchJobId.current && payload.sessionId !== activeSearchJobId.current) {
+        return;
       }
-    );
+      activeSearchJobId.current = payload.sessionId;
+      setSearchResponse(payload);
+      setSelected([]);
+      setConfigurationError(null);
+    });
     const unlistenState = listen<JobState>("job-state", ({ payload }) => {
       if (payload.jobId !== activeSearchJobId.current) return;
       if (payload.state === "running") return;
@@ -393,9 +379,7 @@ export function MusicPage({
 
   const toggleSource = (source: string) => {
     setSources((current) =>
-      current.includes(source)
-        ? current.filter((value) => value !== source)
-        : [...current, source]
+      current.includes(source) ? current.filter((value) => value !== source) : [...current, source]
     );
     setSearchResponse(null);
     setSelected([]);
@@ -473,19 +457,13 @@ export function MusicPage({
           <div>
             <span className="eyebrow">OPTIONAL EXTERNAL DEPENDENCY</span>
             <h1>音乐下载</h1>
-            <p>
-              安装 Python 3 与 musicdl 后启用；两者不会包含在 MAD Toolbox 安装包中。
-            </p>
+            <p>安装 Python 3 与 musicdl 后启用；两者不会包含在 MAD Toolbox 安装包中。</p>
           </div>
         </div>
         <section className="music-install-card">
           <TriangleAlert size={24} />
           <div>
-            <h2>
-              {!pythonInstalled
-                ? "尚未检测到 Python 3"
-                : "尚未检测到 musicdl"}
-            </h2>
+            <h2>{!pythonInstalled ? "尚未检测到 Python 3" : "尚未检测到 musicdl"}</h2>
             <p>
               musicdl 需要 Python 3。推荐通过{isWindows ? " winget" : " Homebrew"}安装
               Python，并使用 pipx 创建隔离环境，避免修改系统 Python。
@@ -493,8 +471,7 @@ export function MusicPage({
             <div className="music-requirement-list">
               <span className={pythonInstalled ? "ok" : "missing"}>
                 {pythonInstalled ? <Check size={13} /> : <TriangleAlert size={13} />}
-                Python 3
-                <small>{pythonDependency?.version || "需要安装"}</small>
+                Python 3<small>{pythonDependency?.version || "需要安装"}</small>
               </span>
               <span className={musicdlInstalled ? "ok" : "missing"}>
                 {musicdlInstalled ? <Check size={13} /> : <TriangleAlert size={13} />}
@@ -526,15 +503,14 @@ export function MusicPage({
             <div>
               <h2>中国大陆网络：配置 pip 镜像</h2>
               <p>
-                如果 PyPI 下载缓慢，可先选择一个镜像并执行配置命令，再运行上面的
-                pipx 安装命令。只需选择一个镜像。
+                如果 PyPI 下载缓慢，可先选择一个镜像并执行配置命令，再运行上面的 pipx
+                安装命令。只需选择一个镜像。
               </p>
             </div>
           </header>
           <div className="pip-mirror-grid">
             {PIP_MIRRORS.map((mirror) => {
-              const command =
-                `${pipCommand} config set global.index-url ${mirror.url}`;
+              const command = `${pipCommand} config set global.index-url ${mirror.url}`;
               const copied = mirrorCopyState === mirror.id;
               const failed = mirrorCopyState === `${mirror.id}-failed`;
               return (
@@ -574,7 +550,9 @@ export function MusicPage({
               <code>{RESET_PIP_MIRROR}</code>
             </span>
             {mirrorCopyState === "reset-failed" && (
-              <span className="copy-feedback failed" role="status">复制失败</span>
+              <span className="copy-feedback failed" role="status">
+                复制失败
+              </span>
             )}
             <button
               className="secondary-button"
@@ -586,15 +564,18 @@ export function MusicPage({
             </button>
           </div>
           <p className="pip-mirror-note">
-            该设置写入当前用户的 pip 配置，并会影响之后的 pip/pipx 下载；不会修改
-            musicdl 或 MAD Toolbox 本身。
+            该设置写入当前用户的 pip 配置，并会影响之后的 pip/pipx 下载；不会修改 musicdl 或 MAD
+            Toolbox 本身。
           </p>
         </section>
         <section className="notice info">
           <ExternalLink size={18} />
           <div>
             <strong>许可证与分发说明</strong>
-            <p>musicdl 使用 PolyForm Noncommercial 1.0.0，并禁止未经许可的捆绑分发，因此这里只调用用户自行安装的副本。</p>
+            <p>
+              musicdl 使用 PolyForm Noncommercial
+              1.0.0，并禁止未经许可的捆绑分发，因此这里只调用用户自行安装的副本。
+            </p>
           </div>
           <button
             className="secondary-button"
@@ -727,7 +708,11 @@ export function MusicPage({
             <strong>音乐源</strong>
             <span>已选择 {sources.length} 个；同时搜索过多音乐源会明显变慢并产生重复结果。</span>
           </div>
-          <button className="secondary-button" type="button" onClick={() => setSources(DEFAULT_SOURCES)}>
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={() => setSources(DEFAULT_SOURCES)}
+          >
             恢复默认
           </button>
         </div>
@@ -744,7 +729,11 @@ export function MusicPage({
             </button>
           ))}
         </div>
-        <button className="advanced-toggle" type="button" onClick={() => setAllSources(!allSources)}>
+        <button
+          className="advanced-toggle"
+          type="button"
+          onClick={() => setAllSources(!allSources)}
+        >
           {allSources ? "收起全部音乐源" : "显示全部音乐源"}
         </button>
         {allSources && (
@@ -760,7 +749,11 @@ export function MusicPage({
                       onClick={() => toggleSource(source)}
                       key={source}
                     >
-                      {sources.includes(source) ? <SquareCheckBig size={14} /> : <Square size={14} />}
+                      {sources.includes(source) ? (
+                        <SquareCheckBig size={14} />
+                      ) : (
+                        <Square size={14} />
+                      )}
                       <span>{label}</span>
                     </button>
                   ))}
@@ -776,20 +769,30 @@ export function MusicPage({
         {advanced && (
           <div className="advanced-panel">
             <p className="advanced-description">
-              以下四项对应 musicdl 的全部高级 CLI 参数；页面上方的目录、Cookie、代理、结果数和线程数会与 JSON 合并。
+              以下四项对应 musicdl 的全部高级 CLI
+              参数；页面上方的目录、Cookie、代理、结果数和线程数会与 JSON 合并。
             </p>
             <div className="form-grid">
               <Field label="-i 客户端初始化设置（JSON）">
                 <TextArea value={rawInit} onChange={(event) => setRawInit(event.target.value)} />
               </Field>
               <Field label="-r 请求覆盖设置（JSON）">
-                <TextArea value={rawRequests} onChange={(event) => setRawRequests(event.target.value)} />
+                <TextArea
+                  value={rawRequests}
+                  onChange={(event) => setRawRequests(event.target.value)}
+                />
               </Field>
               <Field label="-c 客户端线程设置（JSON）">
-                <TextArea value={rawThreadings} onChange={(event) => setRawThreadings(event.target.value)} />
+                <TextArea
+                  value={rawThreadings}
+                  onChange={(event) => setRawThreadings(event.target.value)}
+                />
               </Field>
               <Field label="-s 搜索规则（JSON）">
-                <TextArea value={rawSearchRules} onChange={(event) => setRawSearchRules(event.target.value)} />
+                <TextArea
+                  value={rawSearchRules}
+                  onChange={(event) => setRawSearchRules(event.target.value)}
+                />
               </Field>
             </div>
           </div>
@@ -838,7 +841,9 @@ export function MusicPage({
           <div className="music-results-toolbar">
             <div>
               <h2>搜索结果</h2>
-              <span>{searchResponse.results.length} 项 · 已选择 {selected.length} 项</span>
+              <span>
+                {searchResponse.results.length} 项 · 已选择 {selected.length} 项
+              </span>
             </div>
             <div>
               <button
@@ -915,7 +920,9 @@ export function MusicPage({
       )}
 
       <section className="music-runtime-note">
-        <span>外部依赖：musicdl {dependency?.path} · Python {pythonDependency?.path}</span>
+        <span>
+          外部依赖：musicdl {dependency?.path} · Python {pythonDependency?.path}
+        </span>
         <code>{UPGRADE_COMMAND}</code>
         <button
           className="icon-button"

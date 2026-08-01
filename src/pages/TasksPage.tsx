@@ -1,18 +1,7 @@
-import {
-  Ban,
-  CheckCircle2,
-  CircleDashed,
-  Download,
-  XCircle
-} from "lucide-react";
+import { Ban, CheckCircle2, CircleDashed, Download, XCircle } from "lucide-react";
 import { save } from "@tauri-apps/plugin-dialog";
 import { useState } from "react";
-import type {
-  DiagnosticExportResult,
-  JobLog,
-  JobState,
-  LogExportRequest
-} from "../lib/types";
+import type { DiagnosticExportResult, JobLog, JobState, LogExportRequest } from "../lib/types";
 
 interface TasksPageProps {
   jobs: JobState[];
@@ -57,7 +46,11 @@ export function TasksPage({ jobs, logs, onCancel, onExport }: TasksPageProps) {
           <p>查看任务状态、取消后台任务，或导出单个任务的日志文件。</p>
         </div>
       </div>
-      {notice && <div className="notice info"><span>{notice}</span></div>}
+      {notice && (
+        <div className="notice info">
+          <span>{notice}</span>
+        </div>
+      )}
       <div className="task-list">
         {jobs.length === 0 ? (
           <div className="empty-state">还没有执行过任务。</div>
@@ -89,7 +82,11 @@ export function TasksPage({ jobs, logs, onCancel, onExport }: TasksPageProps) {
                   {exportingJob === job.jobId ? "导出中" : "导出日志"}
                 </button>
                 {job.state === "running" && (
-                  <button className="danger-button" type="button" onClick={() => onCancel(job.jobId)}>
+                  <button
+                    className="danger-button"
+                    type="button"
+                    onClick={() => onCancel(job.jobId)}
+                  >
                     <Ban size={14} />
                     取消
                   </button>

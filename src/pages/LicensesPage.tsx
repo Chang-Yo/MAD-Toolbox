@@ -17,7 +17,10 @@ export function LicensesPage() {
         <section>
           <strong>FFmpeg</strong>
           <span>8.1.2 · LGPL-2.1-or-later</span>
-          <p>Full 版未启用 GPL/nonfree 组件，并随应用附带精确源码、构建资料和 LGPL 文本；Windows 版使用 BtbN 的 MIT 构建脚本。</p>
+          <p>
+            Full 版未启用 GPL/nonfree 组件，并随应用附带精确源码、构建资料和 LGPL 文本；Windows
+            版使用 BtbN 的 MIT 构建脚本。
+          </p>
         </section>
         <section>
           <strong>yt-dlp / yt-dlp-ejs</strong>
@@ -35,7 +38,10 @@ export function LicensesPage() {
         <section>
           <strong>musicdl（可选外部依赖，不随应用分发）</strong>
           <span>Copyright © 2018–2026 CharlesPikachu · PolyForm Noncommercial 1.0.0</span>
-          <p>MAD Toolbox 只调用用户自行安装的 musicdl，不复制或捆绑其软件；仅可按其许可证和各音乐平台条款使用。</p>
+          <p>
+            MAD Toolbox 只调用用户自行安装的
+            musicdl，不复制或捆绑其软件；仅可按其许可证和各音乐平台条款使用。
+          </p>
         </section>
       </div>
     </div>

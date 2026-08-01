@@ -310,14 +310,7 @@ export interface MediaOptions {
     | "libsvtav1";
   videoEncoderFallback?: MediaOptions["videoCodec"];
   audioCodec:
-    | "copy"
-    | "pcm_s24le"
-    | "pcm_s16le"
-    | "aac"
-    | "libmp3lame"
-    | "flac"
-    | "libopus"
-    | "opus";
+    "copy" | "pcm_s24le" | "pcm_s16le" | "aac" | "libmp3lame" | "flac" | "libopus" | "opus";
   mapAll: boolean;
   preserveMetadata: boolean;
   overwrite: boolean;
@@ -423,19 +416,25 @@ export function buildFfmpegArgs(input: string, output: string, options: MediaOpt
     args.push("-vn", "-an", "-c:s", subtitleCodec);
   } else if (options.operation === "audio") {
     const mustEncodeAudio =
-      audioFilters.length > 0 || Boolean(options.sampleRate.trim()) || Boolean(options.channels.trim());
-    const audioCodec = options.audioCodec === "copy" && mustEncodeAudio ? "aac" : options.audioCodec;
+      audioFilters.length > 0 ||
+      Boolean(options.sampleRate.trim()) ||
+      Boolean(options.channels.trim());
+    const audioCodec =
+      options.audioCodec === "copy" && mustEncodeAudio ? "aac" : options.audioCodec;
     args.push("-vn", "-c:a", audioCodec);
     if (audioFilters.length) args.push("-af", audioFilters.join(","));
   } else {
     const mustEncodeVideo = videoFilters.length > 0;
     const mustEncodeAudio =
-      audioFilters.length > 0 || Boolean(options.sampleRate.trim()) || Boolean(options.channels.trim());
+      audioFilters.length > 0 ||
+      Boolean(options.sampleRate.trim()) ||
+      Boolean(options.channels.trim());
     const videoCodec =
       options.videoCodec === "copy" && mustEncodeVideo
         ? options.videoEncoderFallback || "h264_videotoolbox"
         : options.videoCodec;
-    const audioCodec = options.audioCodec === "copy" && mustEncodeAudio ? "aac" : options.audioCodec;
+    const audioCodec =
+      options.audioCodec === "copy" && mustEncodeAudio ? "aac" : options.audioCodec;
     args.push("-c:v", videoCodec, "-c:a", audioCodec);
     if (options.operation === "remux") args.push("-c:s", "copy", "-c:d", "copy");
     if (videoFilters.length) args.push("-vf", videoFilters.join(","));
@@ -464,7 +463,11 @@ export function buildFfmpegArgs(input: string, output: string, options: MediaOpt
       args.push("-movflags", "+faststart");
     }
   }
-  if (options.operation !== "thumbnail" && options.operation !== "gif" && options.operation !== "frames") {
+  if (
+    options.operation !== "thumbnail" &&
+    options.operation !== "gif" &&
+    options.operation !== "frames"
+  ) {
     if (options.audioBitrate.trim() && options.audioCodec !== "copy") {
       args.push("-b:a", options.audioBitrate.trim());
     }

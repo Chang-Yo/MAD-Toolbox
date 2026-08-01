@@ -1,10 +1,6 @@
 import { Check, Copy, Download, Music2, RefreshCw, TriangleAlert, X } from "lucide-react";
 import type { DependencyStatus } from "../lib/types";
-import {
-  isWindows,
-  liteInstallCommand,
-  platformLabel
-} from "../lib/platform";
+import { isWindows, liteInstallCommand, platformLabel } from "../lib/platform";
 
 interface HomePageProps {
   dependencies: DependencyStatus[];
@@ -31,7 +27,9 @@ export function HomePage({
     <div className="page">
       <section className="hero-card">
         <div>
-          <span className="eyebrow">{platformLabel.toUpperCase()} · {distributionMode === "Full" ? "全内置版" : "轻量版"}</span>
+          <span className="eyebrow">
+            {platformLabel.toUpperCase()} · {distributionMode === "Full" ? "全内置版" : "轻量版"}
+          </span>
           <h1>让常用媒体命令变得简单。</h1>
           <p>选择功能和参数，MAD Toolbox 会生成命令、执行任务并保留完整日志。</p>
         </div>

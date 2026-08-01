@@ -1,12 +1,5 @@
 export type ToolName =
-  | "bbdown"
-  | "yt-dlp"
-  | "musicdl"
-  | "ffmpeg"
-  | "ffprobe"
-  | "mediainfo"
-  | "deno"
-  | "python";
+  "bbdown" | "yt-dlp" | "musicdl" | "ffmpeg" | "ffprobe" | "mediainfo" | "deno" | "python";
 
 export interface DependencyStatus {
   tool: ToolName;
@@ -76,6 +69,8 @@ export interface LoginQr {
   jobId: string;
   dataUrl: string;
 }
+
+export type BbdownAuthStatus = "unknown" | "authenticated" | "unauthenticated";
 
 export interface MediaInspection {
   path: string;

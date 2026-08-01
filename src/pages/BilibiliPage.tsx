@@ -58,7 +58,12 @@ const initialOptions: BilibiliOptions = {
   extraArgs: ""
 };
 
-export function BilibiliPage({ bbdownAvailable, loginQr, onRun }: BilibiliPageProps) {
+export function BilibiliPage({
+  bbdownAvailable,
+  bbdownAuthStatus,
+  loginQr,
+  onRun
+}: BilibiliPageProps) {
   const [options, setOptions] = useState(initialOptions);
   const [advanced, setAdvanced] = useState(false);
   const [showLinks, setShowLinks] = useState(false);

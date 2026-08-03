@@ -58,7 +58,7 @@ export function useBackend() {
       setLogs((current) => [...current.slice(-4999), payload]);
       if (payload.tool === "bbdown") {
         const line = payload.line.replace(/\s+/g, "").toLowerCase();
-        if (line.includes("登录成功")) {
+        if (line.includes("cookie数据已补全并验证登录成功")) {
           setBbdownAuthStatus("authenticated");
         } else if (
           line.includes("尚未登录") ||

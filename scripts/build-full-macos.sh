@@ -5,6 +5,7 @@ project_directory="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
 app="$project_directory/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/MAD Toolbox.app"
 dmg_directory="$project_directory/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg"
 yt_dlp="$project_directory/src-tauri/binaries/yt-dlp-aarch64-apple-darwin"
+bbdown="$project_directory/src-tauri/binaries/BBDown-aarch64-apple-darwin"
 staging_directory="$(mktemp -d /private/tmp/mad-toolbox-full-dmg.XXXXXX)"
 
 cleanup() {
@@ -21,14 +22,18 @@ npm exec tauri -- build \
   --config src-tauri/tauri.full.conf.json \
   --bundles app
 
-# Tauri applies hardened runtime to every sidecar. The official PyInstaller
-# yt-dlp executable extracts a Python framework whose signature is incompatible
-# with hardened library validation. Restore the verified upstream ad-hoc
-# signature, then reseal only the outer application bundle.
+# Tauri applies hardened runtime to every sidecar. Restore the verified
+# upstream PyInstaller executables byte-for-byte, then reseal only the outer
+# application bundle. This keeps BBDown exactly as published upstream and lets
+# yt-dlp extract its Python framework without hardened library validation.
+cp "$bbdown" "$app/Contents/MacOS/BBDown"
+chmod 755 "$app/Contents/MacOS/BBDown"
 cp "$yt_dlp" "$app/Contents/MacOS/yt-dlp"
 chmod 755 "$app/Contents/MacOS/yt-dlp"
 codesign --force --sign - --options runtime "$app"
 codesign --verify --deep --strict "$app"
+shasum -a 256 "$app/Contents/MacOS/BBDown" |
+  grep -q "33597b2b7b83eecb4fbb4f0a50a43f1ada3ac1d9b6adf4eadda8399c700ea470"
 "$app/Contents/MacOS/yt-dlp" --version | grep -q "2026.07.04"
 
 mkdir -p "$dmg_directory"

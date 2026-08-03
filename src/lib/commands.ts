@@ -310,14 +310,7 @@ export interface MediaOptions {
     | "libsvtav1";
   videoEncoderFallback?: MediaOptions["videoCodec"];
   audioCodec:
-    | "copy"
-    | "pcm_s24le"
-    | "pcm_s16le"
-    | "aac"
-    | "libmp3lame"
-    | "flac"
-    | "libopus"
-    | "opus";
+    "copy" | "pcm_s24le" | "pcm_s16le" | "aac" | "libmp3lame" | "flac" | "libopus" | "opus";
   mapAll: boolean;
   preserveMetadata: boolean;
   overwrite: boolean;
@@ -350,6 +343,26 @@ export interface MediaOptions {
   loudnessNormalization: boolean;
   gifFps: number;
   gifWidth: number;
+}
+
+function audioCodecForOutput(
+  operation: MediaOptions["operation"],
+  container: MediaOptions["container"],
+  audioCodec: MediaOptions["audioCodec"]
+): MediaOptions["audioCodec"] {
+  if (operation !== "audio") return audioCodec;
+  // The GUI does not probe every source before building the command. Choose
+  // a broadly supported encoder for the common extraction containers instead
+  // of producing a guaranteed header error (for example Opus/MP3 copied into
+  // M4A). Explicit codecs that are incompatible with the selected container
+  // are normalized for the same reason.
+  if (container === "m4a") return "aac";
+  if (container === "wav" || container === "aiff") {
+    return ["pcm_s16le", "pcm_s24le"].includes(audioCodec) ? audioCodec : "pcm_s24le";
+  }
+  if (container === "flac") return audioCodec === "flac" ? audioCodec : "flac";
+  if (container === "ogg") return audioCodec === "opus" ? audioCodec : "opus";
+  return audioCodec;
 }
 
 export function buildFfmpegArgs(input: string, output: string, options: MediaOptions): string[] {
@@ -402,6 +415,7 @@ export function buildFfmpegArgs(input: string, output: string, options: MediaOpt
   if (options.volume.trim()) audioFilters.push(`volume=${options.volume.trim()}`);
   if (options.loudnessNormalization) audioFilters.push("loudnorm=I=-16:LRA=11:TP=-1.5");
 
+  let resolvedAudioCodec: MediaOptions["audioCodec"] | null = null;
   if (options.operation === "thumbnail") {
     if (videoFilters.length) args.push("-vf", videoFilters.join(","));
     args.push("-frames:v", "1", "-q:v", "2");
@@ -423,21 +437,44 @@ export function buildFfmpegArgs(input: string, output: string, options: MediaOpt
     args.push("-vn", "-an", "-c:s", subtitleCodec);
   } else if (options.operation === "audio") {
     const mustEncodeAudio =
-      audioFilters.length > 0 || Boolean(options.sampleRate.trim()) || Boolean(options.channels.trim());
-    const audioCodec = options.audioCodec === "copy" && mustEncodeAudio ? "aac" : options.audioCodec;
+      audioFilters.length > 0 ||
+      Boolean(options.sampleRate.trim()) ||
+      Boolean(options.channels.trim());
+    const audioCodec =
+      options.audioCodec === "copy" && mustEncodeAudio
+        ? "aac"
+        : audioCodecForOutput(options.operation, options.container, options.audioCodec);
+    resolvedAudioCodec = audioCodec;
     args.push("-vn", "-c:a", audioCodec);
+    if (audioCodec === "opus") args.push("-strict", "-2");
     if (audioFilters.length) args.push("-af", audioFilters.join(","));
   } else {
     const mustEncodeVideo = videoFilters.length > 0;
     const mustEncodeAudio =
-      audioFilters.length > 0 || Boolean(options.sampleRate.trim()) || Boolean(options.channels.trim());
+      audioFilters.length > 0 ||
+      Boolean(options.sampleRate.trim()) ||
+      Boolean(options.channels.trim());
     const videoCodec =
       options.videoCodec === "copy" && mustEncodeVideo
         ? options.videoEncoderFallback || "h264_videotoolbox"
         : options.videoCodec;
-    const audioCodec = options.audioCodec === "copy" && mustEncodeAudio ? "aac" : options.audioCodec;
+    const audioCodec =
+      options.audioCodec === "copy" && mustEncodeAudio ? "aac" : options.audioCodec;
+    resolvedAudioCodec = audioCodec;
     args.push("-c:v", videoCodec, "-c:a", audioCodec);
-    if (options.operation === "remux") args.push("-c:s", "copy", "-c:d", "copy");
+    if (audioCodec === "opus") args.push("-strict", "-2");
+    if (options.operation === "remux") {
+      args.push(
+        "-c:s",
+        ["mp4", "mov"].includes(options.container) ? "mov_text" : "copy",
+        "-c:d",
+        "copy"
+      );
+    } else if (options.mapAll && ["mp4", "mov"].includes(options.container)) {
+      // MP4/MOV have no automatic encoder for SubRip/ASS streams. Convert
+      // text subtitles to QuickTime text when all streams are retained.
+      args.push("-c:s", "mov_text");
+    }
     if (videoFilters.length) args.push("-vf", videoFilters.join(","));
     if (audioFilters.length) args.push("-af", audioFilters.join(","));
     if (videoCodec === "prores_ks") args.push("-profile:v", "2");
@@ -464,8 +501,12 @@ export function buildFfmpegArgs(input: string, output: string, options: MediaOpt
       args.push("-movflags", "+faststart");
     }
   }
-  if (options.operation !== "thumbnail" && options.operation !== "gif" && options.operation !== "frames") {
-    if (options.audioBitrate.trim() && options.audioCodec !== "copy") {
+  if (
+    options.operation !== "thumbnail" &&
+    options.operation !== "gif" &&
+    options.operation !== "frames"
+  ) {
+    if (options.audioBitrate.trim() && resolvedAudioCodec && resolvedAudioCodec !== "copy") {
       args.push("-b:a", options.audioBitrate.trim());
     }
     if (options.sampleRate.trim()) args.push("-ar", options.sampleRate.trim());

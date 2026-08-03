@@ -1,6 +1,6 @@
 # Windows x64 build
 
-MAD Toolbox 0.5.9 targets Windows 10 22H2 and Windows 11 on Intel/AMD x64
+MAD Toolbox 0.5.10 targets Windows 10 22H2 and Windows 11 on Intel/AMD x64
 processors (`x86_64-pc-windows-msvc`). ARM64 and 32-bit x86 installers are not
 currently produced.
 
@@ -43,13 +43,14 @@ The output is a per-user bilingual NSIS installer.
 ## CLI state and diagnostics
 
 The bundled BBDown is launched directly from the directory shipped inside the
-application. Login and later downloads use that same executable and working
-directory, so BBDown reads and writes `BBDown.data` exactly as in the original
-CLI. The GUI does not copy, parse, encrypt, migrate or inject credentials, and
-it never launches a separately installed BBDown.
+application. Later downloads use that same executable and working directory,
+so BBDown reads `BBDown.data` exactly as in the original CLI. GUI QR login uses
+BBDown's official web endpoints only to complete that native data file from the
+Cookie fields returned by Bilibili; it does not modify the BBDown binary,
+launch a separately installed BBDown, or keep a second credential store.
 
-MAD Toolbox does not parse, encrypt or inject this native state and does not
-use Credential Manager. Templates are ordinary WebView application data.
+MAD Toolbox does not encrypt or inject this native state and does not use
+Credential Manager. Templates are ordinary WebView application data.
 Exported task logs preserve original CLI output and may therefore contain
 cookies, passwords, tokens, proxy credentials, URLs and local paths.
 

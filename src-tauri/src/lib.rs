@@ -1,5 +1,10 @@
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use chrono::Local;
+use qrcode::QrCode;
+use reqwest::{
+    header::{COOKIE, REFERER},
+    Client, Url,
+};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -735,6 +740,400 @@ fn bbdown_directory(executable: &Path) -> Result<PathBuf, String> {
         .ok_or_else(|| "无法确定 BBDown 所在目录".to_string())
 }
 
+const BBDOWN_QR_GENERATE_URL: &str =
+    "https://passport.bilibili.com/x/passport-login/web/qrcode/generate?source=main-fe-header";
+const BBDOWN_QR_POLL_URL: &str = "https://passport.bilibili.com/x/passport-login/web/qrcode/poll";
+const BILIBILI_NAV_URL: &str = "https://api.bilibili.com/x/web-interface/nav";
+const BBDOWN_USER_AGENT: &str =
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+const BBDOWN_COOKIE_KEYS: [&str; 7] = [
+    "SESSDATA",
+    "bili_jct",
+    "DedeUserID",
+    "DedeUserID__ckMd5",
+    "sid",
+    "buvid3",
+    "buvid4",
+];
+
+#[cfg(test)]
+fn parse_query_fields(value: &str, separator: char) -> HashMap<String, String> {
+    value
+        .split(separator)
+        .filter_map(|field| {
+            let (key, value) = field.trim().split_once('=')?;
+            let key = key.trim();
+            if key.is_empty() {
+                return None;
+            }
+            Some((key.to_string(), value.trim().to_string()))
+        })
+        .collect()
+}
+
+fn merge_cookie_fields(target: &mut HashMap<String, String>, source: HashMap<String, String>) {
+    for key in BBDOWN_COOKIE_KEYS {
+        if let Some(value) = source.get(key).filter(|value| !value.is_empty()) {
+            target.insert(key.to_string(), value.clone());
+        }
+    }
+}
+
+fn has_required_bbdown_cookie(fields: &HashMap<String, String>) -> bool {
+    ["SESSDATA", "bili_jct", "DedeUserID"]
+        .iter()
+        .all(|key| fields.get(*key).is_some_and(|value| !value.is_empty()))
+}
+
+fn cookie_header(fields: &HashMap<String, String>) -> String {
+    BBDOWN_COOKIE_KEYS
+        .iter()
+        .filter_map(|key| {
+            fields
+                .get(*key)
+                .map(|value| format!("{key}={}", value.replace(',', "%2C")))
+        })
+        .collect::<Vec<_>>()
+        .join(";")
+}
+
+fn merge_cookie_url(target: &mut HashMap<String, String>, value: &str) {
+    if let Ok(url) = Url::parse(value) {
+        let fields = url
+            .query_pairs()
+            .map(|(key, value)| (key.into_owned(), value.into_owned()))
+            .collect();
+        merge_cookie_fields(target, fields);
+    }
+}
+
+async fn validate_bbdown_cookie(
+    client: &Client,
+    nav_url: &str,
+    cookie: &str,
+) -> Result<(), String> {
+    let response = client
+        .get(nav_url)
+        .header(COOKIE, cookie)
+        .header(REFERER, "https://www.bilibili.com/")
+        .send()
+        .await
+        .map_err(|error| format!("验证 BBDown Cookie 失败：{error}"))?;
+    if !response.status().is_success() {
+        return Err(format!(
+            "验证 BBDown Cookie 失败：HTTP {}",
+            response.status()
+        ));
+    }
+    let body: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|error| format!("解析账号验证结果失败：{error}"))?;
+    if body
+        .pointer("/data/isLogin")
+        .and_then(serde_json::Value::as_bool)
+        == Some(true)
+    {
+        Ok(())
+    } else {
+        Err("BBDown Cookie 数据不完整或账号验证未通过".into())
+    }
+}
+
+fn save_bbdown_data(data_path: &Path, completed: &str) -> Result<(), String> {
+    let temporary = data_path.with_extension(format!("data.{}.tmp", Uuid::new_v4()));
+    std::fs::write(&temporary, completed).map_err(|error| format!("写入登录数据失败：{error}"))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&temporary, std::fs::Permissions::from_mode(0o600))
+            .map_err(|error| format!("设置登录数据权限失败：{error}"))?;
+    }
+    std::fs::rename(&temporary, data_path)
+        .map_err(|error| format!("保存完整 BBDown.data 失败：{error}"))?;
+    Ok(())
+}
+
+async fn validate_and_save_bbdown_data(
+    client: &Client,
+    data_path: &Path,
+    cookies: &HashMap<String, String>,
+) -> Result<(), String> {
+    if !has_required_bbdown_cookie(cookies) {
+        return Err("B站二维码轮询没有返回完整 Cookie（SESSDATA、bili_jct、DedeUserID）".into());
+    }
+    let completed = cookie_header(cookies);
+    validate_bbdown_cookie(client, BILIBILI_NAV_URL, &completed).await?;
+    save_bbdown_data(data_path, &completed)
+}
+
+#[derive(Debug)]
+enum BbdownLoginError {
+    Cancelled,
+    Failed(String),
+}
+
+async fn generate_bbdown_qr(client: &Client) -> Result<(String, String), String> {
+    let response = client
+        .get(BBDOWN_QR_GENERATE_URL)
+        .header(REFERER, "https://www.bilibili.com/")
+        .send()
+        .await
+        .map_err(|error| format!("获取 B站登录地址失败：{error}"))?;
+    if !response.status().is_success() {
+        return Err(format!("获取 B站登录地址失败：HTTP {}", response.status()));
+    }
+    let body: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|error| format!("解析 B站登录地址失败：{error}"))?;
+    if body.pointer("/code").and_then(serde_json::Value::as_i64) != Some(0) {
+        return Err(format!(
+            "B站登录地址接口失败：{}",
+            body.pointer("/message")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("未知错误")
+        ));
+    }
+    let url = body
+        .pointer("/data/url")
+        .and_then(serde_json::Value::as_str)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "B站登录接口没有返回二维码地址".to_string())?;
+    let qrcode_key = body
+        .pointer("/data/qrcode_key")
+        .and_then(serde_json::Value::as_str)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "B站登录接口没有返回二维码密钥".to_string())?;
+    Ok((url.to_string(), qrcode_key.to_string()))
+}
+
+fn bbdown_qr_data_url(url: &str) -> Result<String, String> {
+    let code =
+        QrCode::new(url.as_bytes()).map_err(|error| format!("生成登录二维码失败：{error}"))?;
+    let svg = code
+        .render::<qrcode::render::svg::Color>()
+        .min_dimensions(320, 320)
+        .build();
+    Ok(format!(
+        "data:image/svg+xml;base64,{}",
+        BASE64.encode(svg.as_bytes())
+    ))
+}
+
+async fn poll_bbdown_qr(
+    client: &Client,
+    qrcode_key: &str,
+) -> Result<(i64, HashMap<String, String>, Option<String>), String> {
+    poll_bbdown_qr_at(client, BBDOWN_QR_POLL_URL, qrcode_key).await
+}
+
+async fn poll_bbdown_qr_at(
+    client: &Client,
+    poll_url: &str,
+    qrcode_key: &str,
+) -> Result<(i64, HashMap<String, String>, Option<String>), String> {
+    let mut poll_url =
+        Url::parse(poll_url).map_err(|error| format!("解析 B站轮询地址失败：{error}"))?;
+    poll_url
+        .query_pairs_mut()
+        .append_pair("qrcode_key", qrcode_key)
+        .append_pair("source", "main-fe-header");
+    let response = client
+        .get(poll_url)
+        .header(REFERER, "https://www.bilibili.com/")
+        .send()
+        .await
+        .map_err(|error| format!("轮询 B站登录状态失败：{error}"))?;
+    if !response.status().is_success() {
+        return Err(format!("轮询 B站登录状态失败：HTTP {}", response.status()));
+    }
+
+    // The current Bilibili response may intentionally leave the credentials
+    // out of data.url and deliver them only as Set-Cookie headers. Keep these
+    // values before consuming the response body, matching the behavior of
+    // current Bilibili clients.
+    let response_cookies = response
+        .cookies()
+        .map(|cookie| (cookie.name().to_string(), cookie.value().to_string()))
+        .collect::<Vec<_>>();
+    let body: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|error| format!("解析 B站登录状态失败：{error}"))?;
+    let code = body
+        .pointer("/data/code")
+        .and_then(serde_json::Value::as_i64)
+        .ok_or_else(|| "B站登录状态响应缺少 data.code".to_string())?;
+    let mut cookies = HashMap::new();
+    merge_cookie_fields(
+        &mut cookies,
+        response_cookies.into_iter().collect::<HashMap<_, _>>(),
+    );
+    let url = body
+        .pointer("/data/url")
+        .and_then(serde_json::Value::as_str)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+    if let Some(value) = &url {
+        merge_cookie_url(&mut cookies, value);
+    }
+    Ok((code, cookies, url))
+}
+
+async fn run_bbdown_login(
+    app: &AppHandle,
+    job_id: &str,
+    data_path: &Path,
+    cancel_rx: &mut oneshot::Receiver<()>,
+) -> Result<(), BbdownLoginError> {
+    let client = Client::builder()
+        .user_agent(BBDOWN_USER_AGENT)
+        .build()
+        .map_err(|error| BbdownLoginError::Failed(format!("初始化 B站登录请求失败：{error}")))?;
+
+    emit_log(
+        app,
+        job_id,
+        &ToolName::Bbdown,
+        "stdout",
+        "获取登录地址...".into(),
+    );
+    let (url, qrcode_key) = generate_bbdown_qr(&client)
+        .await
+        .map_err(BbdownLoginError::Failed)?;
+    let data_url = bbdown_qr_data_url(&url).map_err(BbdownLoginError::Failed)?;
+    let _ = app.emit(
+        "bbdown-login-qr",
+        LoginQr {
+            job_id: job_id.to_string(),
+            data_url,
+        },
+    );
+    emit_log(
+        app,
+        job_id,
+        &ToolName::Bbdown,
+        "stdout",
+        "生成二维码成功，请打开并扫描，或扫描打印的二维码".into(),
+    );
+
+    let mut scanned = false;
+    for _ in 0..180 {
+        tokio::select! {
+            _ = &mut *cancel_rx => return Err(BbdownLoginError::Cancelled),
+            _ = sleep(Duration::from_secs(1)) => {}
+        }
+        let (status, cookies, _url) = poll_bbdown_qr(&client, &qrcode_key)
+            .await
+            .map_err(BbdownLoginError::Failed)?;
+        match status {
+            86101 => {}
+            86090 => {
+                if !scanned {
+                    scanned = true;
+                    emit_log(
+                        app,
+                        job_id,
+                        &ToolName::Bbdown,
+                        "stdout",
+                        "扫码成功，请确认...".into(),
+                    );
+                }
+            }
+            86038 => {
+                return Err(BbdownLoginError::Failed("二维码已过期，请重新扫码".into()));
+            }
+            0 => {
+                emit_log(
+                    app,
+                    job_id,
+                    &ToolName::Bbdown,
+                    "stdout",
+                    "登录成功，正在保存 Cookie...".into(),
+                );
+                validate_and_save_bbdown_data(&client, data_path, &cookies)
+                    .await
+                    .map_err(BbdownLoginError::Failed)?;
+                return Ok(());
+            }
+            other => {
+                return Err(BbdownLoginError::Failed(format!(
+                    "B站登录失败，二维码状态码 {other}"
+                )));
+            }
+        }
+    }
+    Err(BbdownLoginError::Failed("二维码登录超时".into()))
+}
+
+async fn spawn_bbdown_login_job(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    working_dir: PathBuf,
+) -> Result<RunResult, String> {
+    std::fs::create_dir_all(&working_dir).map_err(|error| error.to_string())?;
+    let data_path = working_dir.join("BBDown.data");
+    let _ = std::fs::remove_file(working_dir.join("qrcode.png"));
+    let job_id = Uuid::new_v4().to_string();
+    let (cancel_tx, mut cancel_rx) = oneshot::channel();
+    state
+        .cancel_senders
+        .lock()
+        .map_err(|_| "任务状态锁定失败".to_string())?
+        .insert(job_id.clone(), cancel_tx);
+    let tool = ToolName::Bbdown;
+    emit_log(&app, &job_id, &tool, "system", "$ BBDown login".into());
+    let _ = app.emit(
+        "job-state",
+        JobState {
+            job_id: job_id.clone(),
+            tool: tool.clone(),
+            state: "running",
+            exit_code: None,
+            message: "BBDown 正在运行".into(),
+        },
+    );
+
+    let task_app = app.clone();
+    let task_job_id = job_id.clone();
+    tauri::async_runtime::spawn(async move {
+        let outcome = run_bbdown_login(&task_app, &task_job_id, &data_path, &mut cancel_rx).await;
+        let (state_name, exit_code, message) = match outcome {
+            Ok(()) => (
+                "completed",
+                Some(0),
+                "BBDown Cookie 数据已补全并验证登录成功".to_string(),
+            ),
+            Err(BbdownLoginError::Cancelled) => ("cancelled", None, "BBDown 已取消".to_string()),
+            Err(BbdownLoginError::Failed(error)) => {
+                ("failed", None, format!("BBDown 账号未登录：{error}"))
+            }
+        };
+        if let Ok(mut senders) = task_app.state::<AppState>().cancel_senders.lock() {
+            senders.remove(&task_job_id);
+        }
+        emit_log(
+            &task_app,
+            &task_job_id,
+            &ToolName::Bbdown,
+            "system",
+            message.clone(),
+        );
+        let _ = task_app.emit(
+            "job-state",
+            JobState {
+                job_id: task_job_id,
+                tool: ToolName::Bbdown,
+                state: state_name,
+                exit_code,
+                message,
+            },
+        );
+    });
+    Ok(RunResult { job_id })
+}
+
 fn strip_ansi_codes(line: &str) -> String {
     let mut output = String::with_capacity(line.len());
     let mut characters = line.chars().peekable();
@@ -1006,20 +1405,9 @@ async fn spawn_job(
     executable: PathBuf,
     args: Vec<String>,
     working_dir: Option<PathBuf>,
-    mark_bbdown_login: bool,
 ) -> Result<RunResult, String> {
     validate_args(&args)?;
     let job_id = Uuid::new_v4().to_string();
-    let login_qr_path = if mark_bbdown_login {
-        working_dir
-            .as_ref()
-            .map(|directory| directory.join("qrcode.png"))
-    } else {
-        None
-    };
-    if let Some(path) = &login_qr_path {
-        let _ = std::fs::remove_file(path);
-    }
     let mut command = Command::new(&executable);
     hide_async_command_window(&mut command);
     command
@@ -1062,26 +1450,6 @@ async fn spawn_job(
             message: format!("{} 正在运行", tool.label()),
         },
     );
-
-    if let Some(qr_path) = login_qr_path.clone() {
-        let qr_app = app.clone();
-        let qr_job_id = job_id.clone();
-        tauri::async_runtime::spawn(async move {
-            for _ in 0..80 {
-                if let Ok(bytes) = std::fs::read(&qr_path) {
-                    let _ = qr_app.emit(
-                        "bbdown-login-qr",
-                        LoginQr {
-                            job_id: qr_job_id,
-                            data_url: format!("data:image/png;base64,{}", BASE64.encode(bytes)),
-                        },
-                    );
-                    break;
-                }
-                sleep(Duration::from_millis(250)).await;
-            }
-        });
-    }
 
     let task_app = app.clone();
     let task_job_id = job_id.clone();
@@ -1601,6 +1969,11 @@ async fn run_tool(
         request.working_dir.map(PathBuf::from)
     };
 
+    if is_login {
+        let directory = working_dir.ok_or_else(|| "无法确定 BBDown 工作目录".to_string())?;
+        return spawn_bbdown_login_job(app, state, directory).await;
+    }
+
     spawn_job(
         app,
         state,
@@ -1608,7 +1981,6 @@ async fn run_tool(
         executable,
         request.args,
         working_dir,
-        is_login,
     )
     .await
 }
@@ -1889,7 +2261,6 @@ async fn musicdl_download(
             selected,
         ],
         None,
-        false,
     )
     .await
 }
@@ -1972,7 +2343,6 @@ async fn musicdl_playlist(
             request_path.to_string_lossy().into_owned(),
         ],
         None,
-        false,
     )
     .await
 }
@@ -2557,7 +2927,6 @@ async fn run_pr_compatible(
                 ffmpeg.clone(),
                 args,
                 None,
-                false,
             )
             .await?,
         );
@@ -2594,12 +2963,18 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{
-        codecs_from_probe, is_text_subtitle_file, media_info_summary, musicdl_launcher_python,
-        pr_audio_container, pr_container, redact_output_line, sanitize_diagnostic_text,
-        streams_from_probe, strip_ansi_codes,
+        bbdown_qr_data_url, codecs_from_probe, cookie_header, has_required_bbdown_cookie,
+        is_text_subtitle_file, media_info_summary, musicdl_launcher_python, parse_query_fields,
+        poll_bbdown_qr_at, pr_audio_container, pr_container, redact_output_line,
+        sanitize_diagnostic_text, streams_from_probe, strip_ansi_codes,
     };
     use serde_json::json;
-    use std::path::Path;
+    use std::{
+        io::{Read, Write},
+        net::TcpListener,
+        path::Path,
+        thread,
+    };
 
     #[test]
     fn redacts_bilibili_credentials_from_process_output() {
@@ -2607,6 +2982,72 @@ mod tests {
             redact_output_line("SESSDATA=secret; bili_jct=csrf access_token=another-secret");
         assert_eq!(output, "SESSDATA=***; bili_jct=*** access_token=***");
         assert!(!output.contains("secret"));
+    }
+
+    #[test]
+    fn recognizes_ticket_only_and_complete_bbdown_data() {
+        let ticket = parse_query_fields(
+            "ticket=dummy;gourl=https%3A%2F%2Fwww.bilibili.com;first_domain=.bilibili.com",
+            ';',
+        );
+        assert!(!has_required_bbdown_cookie(&ticket));
+        let complete = parse_query_fields(
+            "SESSDATA=session;bili_jct=csrf;DedeUserID=123;DedeUserID__ckMd5=hash;sid=sid",
+            ';',
+        );
+        assert!(has_required_bbdown_cookie(&complete));
+        assert_eq!(
+            cookie_header(&complete),
+            "SESSDATA=session;bili_jct=csrf;DedeUserID=123;DedeUserID__ckMd5=hash;sid=sid"
+        );
+        let comma = parse_query_fields("SESSDATA=session,part;bili_jct=csrf;DedeUserID=123", ';');
+        assert_eq!(
+            cookie_header(&comma),
+            "SESSDATA=session%2Cpart;bili_jct=csrf;DedeUserID=123"
+        );
+    }
+
+    #[tokio::test]
+    async fn reads_complete_cookie_fields_from_qr_poll_set_cookie_headers() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = [0_u8; 8192];
+            let length = stream.read(&mut request).unwrap();
+            let request = String::from_utf8_lossy(&request[..length]);
+            assert!(request.starts_with("GET /poll?qrcode_key=test-key&source=main-fe-header"));
+            let body = r#"{"code":0,"data":{"code":0,"url":"https://passport.biligame.com/crossDomain?ticket=legacy-ticket"}}"#;
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nSet-Cookie: SESSDATA=session-value; Path=/; HttpOnly\r\nSet-Cookie: bili_jct=csrf-value; Path=/\r\nSet-Cookie: DedeUserID=123; Path=/\r\nSet-Cookie: DedeUserID__ckMd5=hash-value; Path=/\r\nSet-Cookie: sid=sid-value; Path=/\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                body.len(),
+                body
+            );
+            stream.write_all(response.as_bytes()).unwrap();
+        });
+
+        let client = reqwest::Client::builder().build().unwrap();
+        let (status, cookies, url) =
+            poll_bbdown_qr_at(&client, &format!("http://{address}/poll"), "test-key")
+                .await
+                .unwrap();
+        server.join().unwrap();
+        assert_eq!(status, 0);
+        assert!(has_required_bbdown_cookie(&cookies));
+        assert_eq!(cookies.get("SESSDATA"), Some(&"session-value".to_string()));
+        assert_eq!(cookies.get("bili_jct"), Some(&"csrf-value".to_string()));
+        assert_eq!(cookies.get("DedeUserID"), Some(&"123".to_string()));
+        assert_eq!(
+            url.as_deref(),
+            Some("https://passport.biligame.com/crossDomain?ticket=legacy-ticket")
+        );
+    }
+
+    #[test]
+    fn renders_bilibili_login_qr_as_data_url() {
+        let data_url = bbdown_qr_data_url("https://passport.bilibili.com/qr/test").unwrap();
+        assert!(data_url.starts_with("data:image/svg+xml;base64,"));
+        assert!(data_url.len() > 500);
     }
 
     #[test]

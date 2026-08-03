@@ -2,14 +2,24 @@
 
 All notable changes to MAD Toolbox are documented here.
 
+## 0.5.10 - 2026-08-03
+
+- Fixed audio extraction defaults: Opus/MP3 and other codecs are no longer
+  blindly copied into incompatible M4A/WAV/FLAC/OGG containers.
+- Fixed all-stream MP4/MOV conversion and remuxing so text subtitles use the
+  compatible `mov_text` encoder instead of failing automatic encoder selection.
+- Rechecked PR-compatible conversion, stream extraction, subtitle extraction,
+  thumbnails, GIFs and image-sequence output against the bundled FFmpeg 8.1.2.
+
 ## 0.5.9 - 2026-08-02
 
 - Run the bundled BBDown directly from its own application directory so its
   native `BBDown.data` and login overwrite behavior remain untouched. The GUI
   no longer copies BBDown or migrates data from any other installation.
-- Rebuilt the bundled macOS BBDown with only the GUI-safe login adjustment:
-  BBDown still performs the QR polling and writes its native data file, while
-  its unused platform cookie container and terminal QR renderer are skipped.
+- Restored the official, unmodified BBDown 1.6.3 binary. GUI QR login follows
+  BBDown's official web endpoints, keeps the complete Cookie fields returned by
+  Bilibili, validates the account, and writes the native `BBDown.data` format;
+  normal downloads still invoke BBDown unchanged.
 
 ## 0.5.8 - 2026-08-01
 

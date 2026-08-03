@@ -11,7 +11,7 @@ program remains under its own license.
 - Version: 1.6.3 (2024-08-14)
 - License: MIT
 - Archived upstream: https://github.com/nilaoda/BBDown
-- Preserved mirror: https://sourceforge.net/projects/bbdown.mirror/
+- Official release: https://github.com/nilaoda/BBDown/releases/tag/1.6.3
 
 The complete license is included at
 `third_party/licenses/BBDown-MIT.txt`. MAD Toolbox is not affiliated with or

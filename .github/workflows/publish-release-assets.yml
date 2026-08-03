@@ -86,10 +86,13 @@ jobs:
           test -n "$macos_full"
           test -n "$macos_lite"
 
-          cp "$windows_full" "dist/MAD Toolbox_${TAG#v}_x64-Full-setup.exe"
-          cp "$windows_lite" "dist/MAD Toolbox_${TAG#v}_x64-Lite-setup.exe"
-          cp "$macos_full" "dist/MAD Toolbox_${TAG#v}_aarch64-Full.dmg"
-          cp "$macos_lite" "dist/MAD Toolbox_${TAG#v}_aarch64-Lite.dmg"
+          # GitHub release assets replace spaces with dots in uploaded names.
+          # Use the final names here so SHA256SUMS.txt is verifiable after
+          # downloading assets from the release page.
+          cp "$windows_full" "dist/MAD.Toolbox_${TAG#v}_x64-Full-setup.exe"
+          cp "$windows_lite" "dist/MAD.Toolbox_${TAG#v}_x64-Lite-setup.exe"
+          cp "$macos_full" "dist/MAD.Toolbox_${TAG#v}_aarch64-Full.dmg"
+          cp "$macos_lite" "dist/MAD.Toolbox_${TAG#v}_aarch64-Lite.dmg"
 
           (cd dist && shasum -a 256 *.exe *.dmg > SHA256SUMS.txt)
 

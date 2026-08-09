@@ -702,7 +702,7 @@ export function MediaPage({
                           update("audioCodec", event.target.value as MediaOptions["audioCodec"])
                         }
                       >
-                        <option value="copy">复制原音频流</option>
+                        <option value="copy">自动选择兼容编码</option>
                         {ffmpegEncoders.includes("pcm_s24le") && (
                           <option value="pcm_s24le">PCM 24-bit</option>
                         )}
@@ -757,6 +757,15 @@ export function MediaPage({
                       label="响度标准化（-16 LUFS）"
                     />
                   </div>
+                  {options.container === "mp3" && !ffmpegEncoders.includes("libmp3lame") && (
+                    <div className="notice warning">
+                      <Info size={16} />
+                      <div>
+                        当前内置 FFmpeg 未包含 MP3 编码器；只有输入本身是 MP3
+                        时才能直接复制，其他音频请改用 M4A、WAV、FLAC 或 OGG。
+                      </div>
+                    </div>
+                  )}
                 </section>
               )}
 

@@ -15,10 +15,13 @@ Thank you for helping improve MAD Toolbox.
 
 ## Local development
 
-Install Node.js 22 and Rust stable, then run:
+Install Node.js 22 and Rust stable. On Windows, also install Visual Studio 2022
+Build Tools with the **Desktop development with C++** workload.
+
+run:
 
 ```bash
-npm install
+npm ci
 npm run check
 cargo test --manifest-path src-tauri/Cargo.toml
 ```

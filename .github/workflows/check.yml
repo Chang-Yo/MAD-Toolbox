@@ -31,3 +31,27 @@ jobs:
       - run: npm run build
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
       - run: cargo test --manifest-path src-tauri/Cargo.toml
+
+  windows:
+    name: Frontend and Rust tests
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: x86_64-pc-windows-msvc
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: windows-x64-lite-check
+      - run: npm ci
+      - name: Verify bundled BBDown sidecar
+        shell: pwsh
+        run: ./scripts/verify-windows-tools.ps1 -Edition Lite
+      - run: npm run check
+      - run: npm run build
+      - run: cargo test --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc

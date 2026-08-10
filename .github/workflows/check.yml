@@ -7,13 +7,62 @@ on:
       - main
   pull_request:
 
+# Cancel superseded runs when new commits arrive (learned from ant-design repo)
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
 jobs:
-  macos:
-    name: Frontend and Rust tests
-    runs-on: macos-14
+  changes:
+    name: Detect changed areas
+    runs-on: ubuntu-latest
+    outputs:
+      should_run_lint: ${{ steps.compute.outputs.should_run_lint }}
+      should_run_build: ${{ steps.compute.outputs.should_run_build }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            code:
+              - 'src/**'
+              - 'src-tauri/src/**'
+              - 'src-tauri/Cargo.toml'
+              - 'src-tauri/Cargo.lock'
+              - 'src-tauri/build.rs'
+              - 'src-tauri/binaries/**'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'tsconfig*.json'
+              - 'vite.config.ts'
+              - '.prettierrc'
+              - '.prettierignore'
+              - 'scripts/**'
+            any:
+              - '**'
+
+      - id: compute
+        shell: bash
+        run: |
+          # Lint runs whenever anything changed (covers docs/markdown formatting too).
+          # Build+test only when core source or build config changed.
+          if [ "${{ steps.filter.outputs.any }}" = "true" ]; then
+            echo "should_run_lint=true" >> "$GITHUB_OUTPUT"
+          fi
+          if [ "${{ steps.filter.outputs.code }}" = "true" ]; then
+            echo "should_run_build=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  lint:
+    name: Lint & Type Check
+    needs: changes
+    if: needs.changes.outputs.should_run_lint == 'true'
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -21,13 +70,61 @@ jobs:
           node-version: 22
           cache: npm
       - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          components: rustfmt
+      - run: npm ci
+      - name: Check formatting (Prettier)
+        run: npm run format:check
+      - name: Type check (tsc, incl. vite.config.ts)
+        run: npm run check
+      - name: Check Rust formatting
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
+
+  test-build:
+    name: Build & Test (${{ matrix.platform }})
+    needs: changes
+    if: needs.changes.outputs.should_run_build == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [macos-14, windows-2022]
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      # Platform-specific Rust target setup (kept explicit for readability)
+      - name: Set up Rust (macOS)
+        if: matrix.platform == 'macos-14'
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Set up Rust (Windows)
+        if: matrix.platform == 'windows-2022'
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          target: x86_64-pc-windows-msvc
+
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          key: ${{ matrix.platform }}
+
       - run: npm ci
-      - name: Check formatting
-        run: npm run format:check
-      - run: npm run check
+
+      - name: Verify bundled Windows sidecar (Lite)
+        if: matrix.platform == 'windows-2022'
+        shell: pwsh
+        run: ./scripts/verify-windows-tools.ps1 -Edition Lite
+
       - run: npm run build
-      - run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
-      - run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      # Platform-specific cargo test invocation (kept explicit for readability)
+      - name: Run Rust tests (macOS)
+        if: matrix.platform == 'macos-14'
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+      - name: Run Rust tests (Windows)
+        if: matrix.platform == 'windows-2022'
+        run: cargo test --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc

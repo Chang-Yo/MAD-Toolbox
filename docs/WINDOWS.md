@@ -22,6 +22,17 @@ Long FFmpeg jobs have no five-minute execution limit. They run until the
 process exits or the user cancels the task. musicdl search has a separate
 30-minute safety timeout.
 
+## Local development
+
+Install Node.js 22 or newer, Rust stable with the MSVC x64 target, and Visual
+Studio 2022 Build Tools with the **Desktop development with C++** workload.
+From the repository root, run:
+
+```powershell
+npm ci
+npm run tauri:dev
+```
+
 ## Full and Lite installers
 
 Full bundles BBDown, FFmpeg/ffprobe, MediaInfo CLI, yt-dlp and Deno. Lite
@@ -32,7 +43,7 @@ newer system version.
 Prepare and build:
 
 ```powershell
-npm install
+npm ci
 npm run tauri:build:windows:lite
 npm run tauri:build:windows:full
 ```

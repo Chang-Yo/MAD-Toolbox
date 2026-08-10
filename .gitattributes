@@ -1,0 +1,41 @@
+# Normalize all text files to LF in the repo and on every checkout.
+# Matches .prettierrc "endOfLine": "lf" and keeps shell scripts runnable on macOS/Linux.
+* text=auto eol=lf
+
+# Source files (explicit for clarity in this TS + Rust polyglot repo)
+*.ts    text eol=lf
+*.tsx   text eol=lf
+*.js    text eol=lf
+*.mjs   text eol=lf
+*.cjs   text eol=lf
+*.json  text eol=lf
+*.css   text eol=lf
+*.html  text eol=lf
+*.md    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.toml  text eol=lf
+*.rs    text eol=lf
+*.sh    text eol=lf
+*.ps1   text eol=lf
+
+# Binaries — never normalize
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.icns  binary
+*.webp  binary
+*.exe   binary
+*.dll   binary
+*.dylib binary
+*.so    binary
+*.bin   binary
+*.a     binary
+*.lib   binary
+*.zip   binary
+*.gz    binary
+*.7z    binary
+*.tar   binary
+*.pdf   binary

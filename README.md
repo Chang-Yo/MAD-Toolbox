@@ -68,37 +68,44 @@ Full 和 Lite 共用同一套功能页面。用户可以在设置中让每个工
 musicdl 因许可证要求不随软件分发。安装方法、USTC/TUNA pip 镜像配置以及
 依赖检测均已放在音乐下载页面。
 
-## 从源码构建
+## 本地开发与从源码构建
 
 需要 Node.js 22、Rust stable 和对应平台的原生构建工具。
 
-Windows x64：
+**Windows x64：**
 
 ```powershell
-npm install
+npm ci
+npm run tauri:dev
+```
+
+构建 Windows 安装包：
+
+```powershell
 npm run tauri:build:windows:lite
 npm run tauri:build:windows:full
 ```
 
-Apple Silicon macOS：
+**Apple Silicon macOS：**
 
 ```bash
-npm install
+npm ci
+npm run tauri:dev
+```
+
+构建 Apple Silicon macOS 安装包：
+
+```bash
 npm run tauri:build:lite
-npm run verify:bundled
 npm run tauri:build:full
 ```
 
-Windows 构建脚本会下载 Git 仓库未保存的大型 sidecar，先校验压缩包及程序
-SHA-256，再生成中英双语 NSIS 安装包。Windows 安装包可以不购买证书直接
-使用，但未签名版本可能触发 SmartScreen 的“未知发布者”提示。
+Windows 构建脚本会校验随仓库分发的 BBDown，并在 Full 构建时下载、校验其余
+Windows sidecar，随后生成中英双语 NSIS 安装包。未签名安装包可能触发
+SmartScreen 的“未知发布者”提示。
 
-GitHub Actions 也可以构建 Windows 安装包和 Apple Silicon macOS DMG。
-打开 **Actions → Build Windows x64 → Run workflow** 或 **Actions →
-Build macOS Apple Silicon → Run workflow**，即可同时构建 Full 和 Lite。
-两个工作流也会在推送 `v*` 标签时自动运行，并将不同版本作为保留 30 天的
-独立 artifact 上传。macOS 工作流会在 arm64 runner 上运行后端测试和内置
-工具校验，验证最终 DMG，并生成 SHA-256 校验文件。
+GitHub Actions 可手动运行 Windows 和 Apple Silicon macOS 的 Full/Lite 构建；
+推送 `v*` 标签时也会自动执行，并将产物保留 30 天。详细构建与校验规则见下方文档。
 
 ## 文档
 

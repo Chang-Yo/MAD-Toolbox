@@ -1,6 +1,4 @@
-export const isWindows =
-  typeof navigator !== "undefined" &&
-  /Windows/i.test(navigator.userAgent);
+export const isWindows = typeof navigator !== "undefined" && /Windows/i.test(navigator.userAgent);
 
 export const platformLabel = isWindows ? "Windows x64" : "Apple Silicon";
 export const fileManagerName = isWindows ? "文件资源管理器" : "Finder";

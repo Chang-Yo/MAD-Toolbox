@@ -20,8 +20,9 @@ export function SettingsPage({ settings, distributionMode, onSave }: SettingsPag
   const [directory, setDirectory] = useState(settings.defaultOutputDirectory || "");
   const [dependencyPreference, setDependencyPreference] = useState(settings.dependencyPreference);
   const [state, setState] = useState<"idle" | "saving" | "saved" | "error">("idle");
-  const [preferenceState, setPreferenceState] =
-    useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [preferenceState, setPreferenceState] = useState<"idle" | "saving" | "saved" | "error">(
+    "idle"
+  );
 
   useEffect(() => {
     setDirectory(settings.defaultOutputDirectory || "");
@@ -62,7 +63,9 @@ export function SettingsPage({ settings, distributionMode, onSave }: SettingsPag
         <div>
           <span className="eyebrow">DISTRIBUTION</span>
           <h1>设置与分发</h1>
-          <p>当前构建为 {platformLabel} {distributionMode === "Full" ? "全内置版" : "轻量版"}。</p>
+          <p>
+            当前构建为 {platformLabel} {distributionMode === "Full" ? "全内置版" : "轻量版"}。
+          </p>
         </div>
       </div>
       <section className="settings-section">
@@ -77,12 +80,19 @@ export function SettingsPage({ settings, distributionMode, onSave }: SettingsPag
             }}
             placeholder="留空使用各工具默认目录"
           />
-          <button className="primary-button" type="button" onClick={() => void save()} disabled={state === "saving"}>
+          <button
+            className="primary-button"
+            type="button"
+            onClick={() => void save()}
+            disabled={state === "saving"}
+          >
             {state === "saved" ? <Check size={15} /> : <Save size={15} />}
             {state === "saving" ? "保存中" : state === "saved" ? "已保存" : "保存"}
           </button>
         </div>
-        {state === "error" && <span className="setting-error">保存失败，请选择一个存在的目录。</span>}
+        {state === "error" && (
+          <span className="setting-error">保存失败，请选择一个存在的目录。</span>
+        )}
       </section>
       <section className="settings-section">
         <div className="settings-heading-row">
@@ -94,8 +104,7 @@ export function SettingsPage({ settings, distributionMode, onSave }: SettingsPag
             className="primary-button"
             type="button"
             disabled={
-              preferenceState === "saving" ||
-              dependencyPreference === settings.dependencyPreference
+              preferenceState === "saving" || dependencyPreference === settings.dependencyPreference
             }
             onClick={() => void savePreference()}
           >
@@ -116,12 +125,12 @@ export function SettingsPage({ settings, distributionMode, onSave }: SettingsPag
               setPreferenceState("idle");
             }}
           >
-          <PackageOpen size={24} />
-          <div>
+            <PackageOpen size={24} />
+            <div>
               <strong>{isWindows ? "系统安装版本优先" : "系统 / Homebrew 优先"}</strong>
               <p>优先使用自行安装的版本，适合希望及时使用最新版的用户。</p>
-            <code>{liteInstallCommand}</code>
-          </div>
+              <code>{liteInstallCommand}</code>
+            </div>
           </button>
           <button
             type="button"
@@ -131,27 +140,25 @@ export function SettingsPage({ settings, distributionMode, onSave }: SettingsPag
               setPreferenceState("idle");
             }}
           >
-          <Box size={24} />
-          <div>
+            <Box size={24} />
+            <div>
               <strong>全内置版本优先（默认）</strong>
               <p>优先使用随应用审计和测试过的依赖，版本稳定且无需额外安装。</p>
-            <span className="muted">
+              <span className="muted">
                 {distributionMode === "Full"
                   ? "当前安装包已包含 FFmpeg、MediaInfo、yt-dlp、Deno 与 BBDown。"
                   : "当前轻量版会在缺少内置依赖时自动使用系统版本。"}
-            </span>
-          </div>
+              </span>
+            </div>
           </button>
         </div>
-        {preferenceState === "error" && (
-          <span className="setting-error">来源设置保存失败。</span>
-        )}
+        {preferenceState === "error" && <span className="setting-error">来源设置保存失败。</span>}
       </section>
       <section className="settings-section">
         <h2>可选音乐下载依赖</h2>
         <p>
-          musicdl 和 Python 不随 MAD Toolbox 分发。推荐通过{isWindows ? " winget" : " Homebrew"}安装 Python，
-          再使用 pipx 隔离安装 musicdl；音乐下载页面提供 USTC/TUNA 换源向导。
+          musicdl 和 Python 不随 MAD Toolbox 分发。推荐通过{isWindows ? " winget" : " Homebrew"}安装
+          Python， 再使用 pipx 隔离安装 musicdl；音乐下载页面提供 USTC/TUNA 换源向导。
         </p>
         <div className="link-list">
           <button
@@ -189,9 +196,18 @@ export function SettingsPage({ settings, distributionMode, onSave }: SettingsPag
           {(isWindows
             ? [
                 ["FFmpeg 官方下载索引与历史源码", "https://ffmpeg.org/download.html"],
-                ["BtbN FFmpeg 8.1 Windows x64 LGPL", "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n8.1-latest-win64-lgpl-8.1.zip"],
-                ["BtbN FFmpeg 7.1 Windows x64 LGPL", "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n7.1-latest-win64-lgpl-7.1.zip"],
-                ["BtbN 最新开发版 Windows x64 LGPL", "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-lgpl.zip"],
+                [
+                  "BtbN FFmpeg 8.1 Windows x64 LGPL",
+                  "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n8.1-latest-win64-lgpl-8.1.zip"
+                ],
+                [
+                  "BtbN FFmpeg 7.1 Windows x64 LGPL",
+                  "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n7.1-latest-win64-lgpl-7.1.zip"
+                ],
+                [
+                  "BtbN 最新开发版 Windows x64 LGPL",
+                  "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-lgpl.zip"
+                ],
                 ["Gyan Windows 构建", "https://www.gyan.dev/ffmpeg/builds/"],
                 ["yt-dlp Windows 发行版", "https://github.com/yt-dlp/yt-dlp/releases"],
                 ["MediaInfo CLI Windows 版", "https://mediaarea.net/MediaInfo/Download/Windows"],

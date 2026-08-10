@@ -93,8 +93,20 @@ export function NetworkPage({
           <p>默认选择最高规格并由 FFmpeg 合并，支持 yt-dlp 可解析的网站。</p>
         </div>
         <div className={`network-badge ${network}`}>
-          {network === "online" ? <Wifi size={15} /> : network === "offline" ? <WifiOff size={15} /> : <Globe2 size={15} />}
-          {network === "checking" ? "检测中" : network === "online" ? "YouTube 可访问" : network === "offline" ? "无法直连" : "尚未检测"}
+          {network === "online" ? (
+            <Wifi size={15} />
+          ) : network === "offline" ? (
+            <WifiOff size={15} />
+          ) : (
+            <Globe2 size={15} />
+          )}
+          {network === "checking"
+            ? "检测中"
+            : network === "online"
+              ? "YouTube 可访问"
+              : network === "offline"
+                ? "无法直连"
+                : "尚未检测"}
         </div>
       </div>
 
@@ -160,16 +172,29 @@ export function NetworkPage({
           <div className="advanced-panel">
             <div className="form-grid">
               <Field label="下载目录">
-                <DirectoryInput value={options.outputDirectory} onChange={(value) => update("outputDirectory", value)} />
+                <DirectoryInput
+                  value={options.outputDirectory}
+                  onChange={(value) => update("outputDirectory", value)}
+                />
               </Field>
               <Field label="文件名模板">
-                <TextInput value={options.outputTemplate} onChange={(e) => update("outputTemplate", e.target.value)} />
+                <TextInput
+                  value={options.outputTemplate}
+                  onChange={(e) => update("outputTemplate", e.target.value)}
+                />
               </Field>
               <Field label="格式选择" hint="留空使用 yt-dlp 默认最高规格">
-                <TextInput value={options.format} onChange={(e) => update("format", e.target.value)} placeholder="bv*+ba/b" />
+                <TextInput
+                  value={options.format}
+                  onChange={(e) => update("format", e.target.value)}
+                  placeholder="bv*+ba/b"
+                />
               </Field>
               <Field label="音频格式">
-                <SelectInput value={options.audioFormat} onChange={(e) => update("audioFormat", e.target.value)}>
+                <SelectInput
+                  value={options.audioFormat}
+                  onChange={(e) => update("audioFormat", e.target.value)}
+                >
                   <option value="best">best</option>
                   <option value="m4a">m4a</option>
                   <option value="mp3">mp3</option>
@@ -179,28 +204,71 @@ export function NetworkPage({
                 </SelectInput>
               </Field>
               <Field label="字幕语言">
-                <TextInput value={options.subtitleLanguages} onChange={(e) => update("subtitleLanguages", e.target.value)} />
+                <TextInput
+                  value={options.subtitleLanguages}
+                  onChange={(e) => update("subtitleLanguages", e.target.value)}
+                />
               </Field>
               <Field label="浏览器 Cookie" hint="例如 chrome、safari、firefox；留空不读取。">
-                <TextInput value={options.cookiesBrowser} onChange={(e) => update("cookiesBrowser", e.target.value)} />
+                <TextInput
+                  value={options.cookiesBrowser}
+                  onChange={(e) => update("cookiesBrowser", e.target.value)}
+                />
               </Field>
               <Field label="播放列表项目" hint="例如 1:10 或 1,3,7">
-                <TextInput value={options.playlistItems} onChange={(e) => update("playlistItems", e.target.value)} />
+                <TextInput
+                  value={options.playlistItems}
+                  onChange={(e) => update("playlistItems", e.target.value)}
+                />
               </Field>
               <Field label="重试次数">
-                <TextInput type="number" min={0} value={options.retries} onChange={(e) => update("retries", Number(e.target.value))} />
+                <TextInput
+                  type="number"
+                  min={0}
+                  value={options.retries}
+                  onChange={(e) => update("retries", Number(e.target.value))}
+                />
               </Field>
               <Field label="并发分片">
-                <TextInput type="number" min={1} value={options.concurrentFragments} onChange={(e) => update("concurrentFragments", Number(e.target.value))} />
+                <TextInput
+                  type="number"
+                  min={1}
+                  value={options.concurrentFragments}
+                  onChange={(e) => update("concurrentFragments", Number(e.target.value))}
+                />
               </Field>
             </div>
             <div className="toggle-grid">
-              <Toggle checked={options.embedMetadata} onChange={(v) => update("embedMetadata", v)} label="嵌入元数据" />
-              <Toggle checked={options.embedThumbnail} onChange={(v) => update("embedThumbnail", v)} label="嵌入封面" />
-              <Toggle checked={options.embedSubtitles} onChange={(v) => update("embedSubtitles", v)} label="嵌入字幕" />
-              <Toggle checked={options.writeInfoJson} onChange={(v) => update("writeInfoJson", v)} label="保存 info.json" />
-              <Toggle checked={options.noPlaylist} onChange={(v) => update("noPlaylist", v)} label="只下载单个视频" />
-              <Toggle checked={options.verbose} onChange={(v) => update("verbose", v)} label="详细调试日志" />
+              <Toggle
+                checked={options.embedMetadata}
+                onChange={(v) => update("embedMetadata", v)}
+                label="嵌入元数据"
+              />
+              <Toggle
+                checked={options.embedThumbnail}
+                onChange={(v) => update("embedThumbnail", v)}
+                label="嵌入封面"
+              />
+              <Toggle
+                checked={options.embedSubtitles}
+                onChange={(v) => update("embedSubtitles", v)}
+                label="嵌入字幕"
+              />
+              <Toggle
+                checked={options.writeInfoJson}
+                onChange={(v) => update("writeInfoJson", v)}
+                label="保存 info.json"
+              />
+              <Toggle
+                checked={options.noPlaylist}
+                onChange={(v) => update("noPlaylist", v)}
+                label="只下载单个视频"
+              />
+              <Toggle
+                checked={options.verbose}
+                onChange={(v) => update("verbose", v)}
+                label="详细调试日志"
+              />
             </div>
           </div>
         )}

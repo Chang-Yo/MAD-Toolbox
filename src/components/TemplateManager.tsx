@@ -39,11 +39,7 @@ function cloneValue<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
-export function TemplateManager<T>({
-  featureKey,
-  value,
-  onApply
-}: TemplateManagerProps<T>) {
+export function TemplateManager<T>({ featureKey, value, onApply }: TemplateManagerProps<T>) {
   const [templates, setTemplates] = useState<SavedTemplate<T>[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [name, setName] = useState("");
@@ -126,9 +122,7 @@ export function TemplateManager<T>({
       (item) => item.name.toLocaleLowerCase() === templateName.toLocaleLowerCase()
     );
     const saved: SavedTemplate<T> = {
-      id:
-        existing?.id ??
-        `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      id: existing?.id ?? `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
       name: templateName,
       updatedAt: new Date().toISOString(),
       value: cloneValue(value)
@@ -186,12 +180,7 @@ export function TemplateManager<T>({
             </option>
           ))}
         </SelectInput>
-        <button
-          className="secondary-button"
-          type="button"
-          disabled={!selected}
-          onClick={load}
-        >
+        <button className="secondary-button" type="button" disabled={!selected} onClick={load}>
           <FolderInput size={15} />
           载入
         </button>

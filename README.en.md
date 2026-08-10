@@ -113,84 +113,55 @@ After installation, restart or use the music page's dependency refresh button.
 The GUI supports keyword search with native result selection, playlist URLs,
 all music source names and all advanced musicdl CLI JSON options.
 
-## Development
+## Local development and building from source
 
-macOS prerequisites:
+Node.js 22, Rust stable and the native build tools for the current platform are required.
 
-- Apple Silicon Mac
-- Node.js 22 or newer
-- Rust toolchain
-- Xcode Command Line Tools
-
-Install JavaScript packages and run:
+**Apple Silicon macOS:**
 
 ```bash
-npm install
+npm ci
 npm run tauri:dev
 ```
 
-Create an Apple Silicon Lite build:
+Create Apple Silicon macOS installers:
 
 ```bash
 npm run tauri:build:lite
-```
-
-Verify every pinned Full artifact before packaging, then create the Full build:
-
-```bash
-npm run verify:bundled
 npm run tauri:build:full
 ```
 
-Windows x64 prerequisites:
+**Windows x64:**
 
-- Windows 10 22H2 or Windows 11 x64
-- Node.js 22 or newer
-- Rust stable with the MSVC x64 target
-- Visual Studio 2022 Build Tools with Desktop development with C++
+```powershell
+npm ci
+npm run tauri:dev
+```
 
-Create Windows NSIS installers:
+Create Windows installers:
 
 ```powershell
 npm run tauri:build:windows:lite
 npm run tauri:build:windows:full
 ```
 
-The preparation script downloads missing official sidecars, verifies both
-archive and binary SHA-256 values, and packages them into the installer. The
-same Full/Lite jobs are available in `.github/workflows/build-windows.yml`.
+The Windows build scripts verify the BBDown binary distributed with the
+repository. Full builds also download and verify the remaining Windows
+sidecars, then produce a bilingual NSIS installer. Unsigned installers may
+trigger a SmartScreen "unknown publisher" warning.
 
-GitHub Actions can also build both Windows installers and Apple Silicon macOS
-DMGs. Open **Actions → Build Windows x64 → Run workflow** or **Actions → Build
-macOS Apple Silicon → Run workflow**. Both workflows also run on `v*` tags and
-upload Full and Lite as separate artifacts with 30-day retention. The macOS
-workflow uses an arm64 runner, runs the backend tests and pinned tool checks,
-validates the resulting DMG, and includes a SHA-256 checksum.
+GitHub Actions can run Full/Lite builds for Windows and Apple Silicon macOS
+manually or when a `v*` tag is pushed. Build artifacts are retained for 30 days.
+See the documents below for detailed build and verification rules.
 
-More documentation:
+## Documentation
 
 - [Windows build, security and compatibility](docs/WINDOWS.md)
 - [Lite dependency installation](docs/DEPENDENCIES.md)
 - [Full build and redistribution policy](docs/FULL_BUILD.md)
 - [Third-party notices](THIRD_PARTY_NOTICES.md)
-
-No paid Apple certificate is required for development. Release builds use a
-free ad-hoc signature, so users may need to approve the app once in System
-Settings > Privacy & Security.
-
-No paid Windows certificate is required either. The generated NSIS installer
-is usable without signing, but Windows SmartScreen may show an unknown
-publisher warning; users must explicitly choose to continue.
-
-## BBDown notice
-
-BBDown is bundled because it is not available as a Homebrew formula. The
-upstream repository was archived in May 2026 and is no longer maintained. This
-project pins the upstream 1.6.3 Apple Silicon and Windows x64 releases and
-preserves its original MIT license and author attribution.
-
-Only download media that you own or are authorized to use. MAD Toolbox does
-not bypass DRM.
+- [Contributing](CONTRIBUTING.md)
+- [Reporting security issues](SECURITY.md)
 
 ## License
 

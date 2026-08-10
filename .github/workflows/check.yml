@@ -5,15 +5,32 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "assets/**"
+      - "third_party/**"
+      - ".github/**/*.md"
   pull_request:
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "assets/**"
+      - "third_party/**"
+      - ".github/**/*.md"
+
+# Cancel superseded runs when new commits arrive (learned from ant-design repo)
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
-  macos:
-    name: Frontend and Rust tests
-    runs-on: macos-14
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -21,37 +38,60 @@ jobs:
           node-version: 22
           cache: npm
       - uses: actions-rust-lang/setup-rust-toolchain@v1
-      - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri
+          components: rustfmt
       - run: npm ci
-      - name: Check formatting
+      - name: Check formatting (Prettier)
         run: npm run format:check
-      - run: npm run check
-      - run: npm run build
-      - run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
-      - run: cargo test --manifest-path src-tauri/Cargo.toml
+      - name: Type check (tsc, incl. vite.config.ts)
+        run: npm run check
+      - name: Check Rust formatting
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
 
-  windows:
-    name: Frontend and Rust tests
-    runs-on: windows-2022
+  test-build:
+    name: Build & Test (${{ matrix.platform }})
+    needs: lint
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [macos-14, windows-2022]
+    runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v5
+
       - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      # Platform-specific Rust target setup (kept explicit for readability)
+      - name: Set up Rust (macOS)
+        if: matrix.platform == 'macos-14'
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Set up Rust (Windows)
+        if: matrix.platform == 'windows-2022'
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           target: x86_64-pc-windows-msvc
+
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
-          key: windows-x64-lite-check
+          key: ${{ matrix.platform }}
+
       - run: npm ci
-      - name: Verify bundled BBDown sidecar
+
+      - name: Verify bundled Windows sidecar (Lite)
+        if: matrix.platform == 'windows-2022'
         shell: pwsh
         run: ./scripts/verify-windows-tools.ps1 -Edition Lite
-      - run: npm run check
+
       - run: npm run build
-      - run: cargo test --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc
+
+      # Platform-specific cargo test invocation (kept explicit for readability)
+      - name: Run Rust tests (macOS)
+        if: matrix.platform == 'macos-14'
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+      - name: Run Rust tests (Windows)
+        if: matrix.platform == 'windows-2022'
+        run: cargo test --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc

@@ -4,11 +4,11 @@
 
 <h1 align="center">MAD Toolbox</h1>
 
-<p align="center">把常用媒体命令行工具变成简洁、清晰的桌面 GUI。</p>
+<p align="center" style="font-family: serif; font-style: italic;">There are many toolboxes, but this one is for you, MADer.</p>
 
 <p align="center">
   <a href="README.en.md">English</a> ·
-  <a href="https://github.com/MAD-Producer/MAD-Toolbox/actions/workflows/check.yml"><img src="https://github.com/MAD-Producer/MAD-Toolbox/actions/workflows/check.yml/badge.svg" alt="Checks"></a> ·
+  <a href="https://github.com/MAD-Producer/MAD-Toolbox/actions/workflows/check.yml"><img src="https://github.com/MAD-Producer/MAD-Toolbox/actions/workflows/check.yml/badge.svg?branch=main" alt="Checks"></a> ·
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
 </p>
 

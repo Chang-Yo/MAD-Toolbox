@@ -4,13 +4,11 @@
 
 <h1 align="center">MAD Toolbox</h1>
 
-<p align="center">
-  Turn BBDown, yt-dlp, FFmpeg and MediaInfo command-line workflows into a clear desktop GUI.
-</p>
+<p align="center" style="font-family: serif; font-style: italic;">There are many toolboxes, but this one is for you, MADer.</p>
 
 <p align="center">
   <a href="README.md">简体中文</a> ·
-  <a href="https://github.com/MAD-Producer/MAD-Toolbox/actions/workflows/check.yml"><img src="https://github.com/MAD-Producer/MAD-Toolbox/actions/workflows/check.yml/badge.svg" alt="Checks"></a> ·
+  <a href="https://github.com/MAD-Producer/MAD-Toolbox/actions/workflows/check.yml"><img src="https://github.com/MAD-Producer/MAD-Toolbox/actions/workflows/check.yml/badge.svg?branch=main" alt="Checks"></a> ·
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
 </p>
 

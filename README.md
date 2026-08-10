@@ -4,13 +4,13 @@
 
 <h1 align="center">MAD Toolbox</h1>
 
-<p align="center">把常用媒体命令行工具变成简洁、清晰的桌面 GUI。</p>
-
 <p align="center">
   <a href="README.en.md">English</a> ·
-  <a href="https://github.com/MAD-Producer/MAD-Toolbox/actions/workflows/check.yml"><img src="https://github.com/MAD-Producer/MAD-Toolbox/actions/workflows/check.yml/badge.svg" alt="Checks"></a> ·
+  <a href="https://github.com/MAD-Producer/MAD-Toolbox/actions/workflows/check.yml"><img src="https://github.com/MAD-Producer/MAD-Toolbox/actions/workflows/check.yml/badge.svg?branch=main" alt="Checks"></a> ·
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
 </p>
+
+<p align="center"><strong><em>"There are many toolboxes, but this one is for you, MADer."</em></strong></p>
 
 MAD Toolbox 是一个面向 Windows 和 macOS 的开源媒体工具箱。它把表单和
 GUI 选项转换为 BBDown、yt-dlp、FFmpeg、MediaInfo 等工具的参数数组，不

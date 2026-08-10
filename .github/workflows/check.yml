@@ -5,19 +5,7 @@ on:
   push:
     branches:
       - main
-    paths-ignore:
-      - "**/*.md"
-      - "docs/**"
-      - "assets/**"
-      - "third_party/**"
-      - ".github/**/*.md"
   pull_request:
-    paths-ignore:
-      - "**/*.md"
-      - "docs/**"
-      - "assets/**"
-      - "third_party/**"
-      - ".github/**/*.md"
 
 # Cancel superseded runs when new commits arrive (learned from ant-design repo)
 concurrency:
@@ -28,8 +16,52 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    name: Detect changed areas
+    runs-on: ubuntu-latest
+    outputs:
+      should_run_lint: ${{ steps.compute.outputs.should_run_lint }}
+      should_run_build: ${{ steps.compute.outputs.should_run_build }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            code:
+              - 'src/**'
+              - 'src-tauri/src/**'
+              - 'src-tauri/Cargo.toml'
+              - 'src-tauri/Cargo.lock'
+              - 'src-tauri/build.rs'
+              - 'src-tauri/binaries/**'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'tsconfig*.json'
+              - 'vite.config.ts'
+              - '.prettierrc'
+              - '.prettierignore'
+              - 'scripts/**'
+            any:
+              - '**'
+
+      - id: compute
+        shell: bash
+        run: |
+          # Lint runs whenever anything changed (covers docs/markdown formatting too).
+          # Build+test only when core source or build config changed.
+          if [ "${{ steps.filter.outputs.any }}" = "true" ]; then
+            echo "should_run_lint=true" >> "$GITHUB_OUTPUT"
+          fi
+          if [ "${{ steps.filter.outputs.code }}" = "true" ]; then
+            echo "should_run_build=true" >> "$GITHUB_OUTPUT"
+          fi
+
   lint:
     name: Lint & Type Check
+    needs: changes
+    if: needs.changes.outputs.should_run_lint == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -50,7 +82,8 @@ jobs:
 
   test-build:
     name: Build & Test (${{ matrix.platform }})
-    needs: lint
+    needs: changes
+    if: needs.changes.outputs.should_run_build == 'true'
     strategy:
       fail-fast: false
       matrix:

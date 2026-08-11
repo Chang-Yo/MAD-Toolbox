@@ -2360,11 +2360,13 @@ fn cancel_job(state: State<'_, AppState>, job_id: String) -> Result<(), String> 
 
 #[tauri::command]
 async fn check_youtube_access(proxy: Option<String>) -> Result<bool, String> {
-    let curl = if cfg!(target_os = "windows") {
-        find_system_binary("curl").unwrap_or_else(|| PathBuf::from("curl.exe"))
-    } else {
-        PathBuf::from("/usr/bin/curl")
-    };
+    let curl = find_system_binary("curl").unwrap_or_else(|| {
+        PathBuf::from(if cfg!(target_os = "windows") {
+            "curl.exe"
+        } else {
+            "curl"
+        })
+    });
     let mut command = background_command(curl);
     command.args([
         "--location",

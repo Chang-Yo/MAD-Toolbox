@@ -2,6 +2,25 @@
 
 All notable changes to MAD Toolbox are documented here.
 
+## 0.5.11 - Pre-release (2026-08-11)
+
+- Added an explicit browser Cookie selector for YouTube downloads, including
+  Windows Edge/Chrome presets and custom browser profiles. This makes the
+  `Sign in to confirm you're not a bot` recovery path visible in the normal
+  download workflow without storing Cookie values in MAD Toolbox.
+- Added a local, restart-persistent interface Logo selector for third-party
+  PNG/JPEG/WebP designs while keeping the signed application icon unchanged.
+- Made YouTube connectivity checks resolve `curl` through the application PATH
+  on every supported platform instead of relying on a fixed Unix path.
+- Tightened tag-build validation: Windows and macOS release builds now run the
+  frontend formatting check, and Windows packaging verifies that exactly one
+  installer was produced for each edition.
+- Pinned the Windows FFmpeg LGPL asset to a dated BtbN build so the Full
+  installer remains reproducible when the upstream rolling `latest` release
+  rotates its assets.
+- Changed Windows NSIS bundles to embed the WebView2 offline installer, so the
+  Full installer can be installed and launched without network access.
+
 ## 0.5.10 - 2026-08-03
 
 - Fixed audio extraction defaults: Opus/MP3 and other codecs are no longer

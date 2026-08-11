@@ -6,6 +6,7 @@ import { CommandBar } from "../components/CommandBar";
 import { Field, SelectInput, TextInput, Toggle } from "../components/Field";
 import { DirectoryInput } from "../components/DirectoryInput";
 import { TemplateManager } from "../components/TemplateManager";
+import { browserCookieOptions } from "../lib/platform";
 
 interface NetworkPageProps {
   ytDlpAvailable: boolean;
@@ -36,6 +37,10 @@ const initialOptions: YtDlpOptions = {
   verbose: false
 };
 
+function browserCookieSelection(value: string) {
+  return browserCookieOptions.some((option) => option.value === value) ? value : "__custom__";
+}
+
 export function NetworkPage({
   ytDlpAvailable,
   denoPath,
@@ -44,6 +49,9 @@ export function NetworkPage({
   onCheckNetwork
 }: NetworkPageProps) {
   const [options, setOptions] = useState(initialOptions);
+  const [selectedBrowserCookie, setSelectedBrowserCookie] = useState(() =>
+    browserCookieSelection(initialOptions.cookiesBrowser)
+  );
   const [advanced, setAdvanced] = useState(false);
   const [network, setNetwork] = useState<"unknown" | "checking" | "online" | "offline">("unknown");
   const checkedOnce = useRef(false);
@@ -83,7 +91,6 @@ export function NetworkPage({
 
   const isYouTube = /(^|\.)youtube\.com|youtu\.be/i.test(options.url);
   const youtubeBlocked = isYouTube && network === "offline";
-
   return (
     <div className="page">
       <div className="page-title">
@@ -113,9 +120,10 @@ export function NetworkPage({
       <TemplateManager
         featureKey="network"
         value={templateOptions}
-        onApply={(template) =>
-          setOptions((current) => ({ ...current, ...template, url: current.url }))
-        }
+        onApply={(template) => {
+          setSelectedBrowserCookie(browserCookieSelection(template.cookiesBrowser));
+          setOptions((current) => ({ ...current, ...template, url: current.url }));
+        }}
       />
 
       <section className="tool-panel">
@@ -143,6 +151,53 @@ export function NetworkPage({
             placeholder="https://www.youtube.com/watch?v=..."
           />
         </Field>
+
+        <div className="form-grid network-auth-grid">
+          <Field
+            label="浏览器 Cookie"
+            hint="YouTube 出现“需要登录或确认不是机器人”时，选择已经登录的浏览器。应用只传递浏览器名称，不保存 Cookie 内容；Windows 上建议先完全退出浏览器再运行。"
+          >
+            <SelectInput
+              value={selectedBrowserCookie}
+              onChange={(event) => {
+                const value = event.target.value;
+                setSelectedBrowserCookie(value);
+                if (value !== "__custom__") update("cookiesBrowser", value);
+              }}
+            >
+              {browserCookieOptions.map(({ value, label }) => (
+                <option value={value} key={value || "none"}>
+                  {label}
+                </option>
+              ))}
+              <option value="__custom__">自定义浏览器 / profile</option>
+            </SelectInput>
+          </Field>
+          {selectedBrowserCookie === "__custom__" && (
+            <Field
+              label="自定义浏览器参数"
+              hint="格式示例：chrome:Default；Firefox profile 可写为 firefox:ProfileName。"
+            >
+              <TextInput
+                value={options.cookiesBrowser}
+                onChange={(event) => update("cookiesBrowser", event.target.value)}
+                placeholder="chrome:Default"
+              />
+            </Field>
+          )}
+        </div>
+        {isYouTube && !options.cookiesBrowser.trim() && (
+          <div className="notice info">
+            <div>
+              <strong>YouTube 可能要求登录</strong>
+              <p>
+                如果任务日志出现 “Sign in to confirm you’re not a
+                bot”，请在上方选择已登录的浏览器；这只读取本机浏览器 Cookie，不会把 Cookie
+                内容写入应用设置。
+              </p>
+            </div>
+          </div>
+        )}
 
         <div className="quick-mode-grid">
           {[
@@ -207,12 +262,6 @@ export function NetworkPage({
                 <TextInput
                   value={options.subtitleLanguages}
                   onChange={(e) => update("subtitleLanguages", e.target.value)}
-                />
-              </Field>
-              <Field label="浏览器 Cookie" hint="例如 chrome、safari、firefox；留空不读取。">
-                <TextInput
-                  value={options.cookiesBrowser}
-                  onChange={(e) => update("cookiesBrowser", e.target.value)}
                 />
               </Field>
               <Field label="播放列表项目" hint="例如 1:10 或 1,3,7">

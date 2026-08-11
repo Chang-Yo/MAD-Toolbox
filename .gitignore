@@ -5,6 +5,7 @@ src-tauri/gen/
 src-tauri/binaries/*.zip
 src-tauri/binaries/*.tar.gz
 src-tauri/resources/MediaInfo-LIBCURL.DLL
+*.tsbuildinfo
 !src-tauri/binaries/README.md
 *.log
 .DS_Store

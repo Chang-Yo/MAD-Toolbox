@@ -45,7 +45,8 @@ Silicon 设备。暂不提供 Windows 32 位和 ARM64 安装包。
 ## Full 与 Lite
 
 Full 版内置经过固定版本和 SHA-256 校验的 BBDown、FFmpeg/ffprobe、
-MediaInfo CLI、yt-dlp 和 Deno，不需要用户另外安装这些命令行工具。
+MediaInfo CLI、yt-dlp 和 Deno，不需要用户另外安装这些命令行工具；Windows
+Full 安装包还内置 WebView2 离线安装程序，安装和启动不需要网络。
 
 Lite 版只内置 BBDown。Windows 可通过 WinGet 安装其余依赖：
 
@@ -101,7 +102,8 @@ npm run tauri:build:full
 ```
 
 Windows 构建脚本会校验随仓库分发的 BBDown，并在 Full 构建时下载、校验其余
-Windows sidecar，随后生成中英双语 NSIS 安装包。未签名安装包可能触发
+Windows sidecar 及 WebView2 离线安装包，随后生成中英双语 NSIS 安装包；这些
+网络访问发生在构建阶段，不是用户安装和启动阶段。未签名安装包可能触发
 SmartScreen 的“未知发布者”提示。
 
 GitHub Actions 可手动运行 Windows 和 Apple Silicon macOS 的 Full/Lite 构建；

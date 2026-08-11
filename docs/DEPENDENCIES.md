@@ -55,7 +55,10 @@ Windows binaries may also be selected from a local folder in the GUI.
 The Full installer contains pinned x64 builds of BBDown, FFmpeg/ffprobe,
 MediaInfo CLI, yt-dlp and Deno. No commands above are required. Its exact
 downloads, archive and executable SHA-256 values are recorded in
-`third_party/windows-sources.json`.
+`third_party/windows-sources.json`. The Windows Full installer also embeds the
+WebView2 offline installer, so installing and launching it does not require an
+internet connection. Network access is still required for network-video tasks
+themselves.
 
 The current FFmpeg sidecars use BtbN's LGPL static Windows x64 build. This
 keeps GPL and nonfree components out of the distributed package. The exact

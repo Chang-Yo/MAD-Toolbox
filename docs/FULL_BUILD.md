@@ -48,6 +48,9 @@ artifacts and verify archive and binary hashes, then run
 FFmpeg source revision and BtbN build-recipe snapshot under
 `third_party/source_archives/` are copied into the Windows installer.
 
-The Windows Lite installer uses `src-tauri/tauri.windows.lite.conf.json` and
-contains BBDown only. Full and Lite share the same application code; runtime
-tool-source settings decide whether bundled or system executables are used.
+The Windows Full NSIS configuration uses WebView2's `offlineInstaller` mode, so
+the WebView2 runtime is embedded in the installer instead of being fetched from
+the internet during installation. The Windows Lite installer uses
+`src-tauri/tauri.windows.lite.conf.json` and contains BBDown only. Full and Lite
+share the same application code; runtime tool-source settings decide whether
+bundled or system executables are used.

@@ -35,10 +35,13 @@ npm run tauri:dev
 
 ## Full and Lite installers
 
-Full bundles BBDown, FFmpeg/ffprobe, MediaInfo CLI, yt-dlp and Deno. Lite
-bundles BBDown and finds the other programs from WinGet/system and other known
-Windows installation locations. Settings allows either installer to prefer a
-newer system version.
+Full bundles BBDown, FFmpeg/ffprobe, MediaInfo CLI, yt-dlp and Deno, and embeds
+the WebView2 offline installer. After the Full installer has been downloaded,
+installation and application startup do not require an internet connection.
+Lite bundles BBDown and finds the other programs from WinGet/system and other
+known Windows installation locations, so Lite still requires those dependencies
+to be installed separately. Settings allows either installer to prefer a newer
+system version.
 
 Prepare and build:
 
@@ -48,8 +51,11 @@ npm run tauri:build:windows:lite
 npm run tauri:build:windows:full
 ```
 
-The scripts download only missing artifacts and verify pinned SHA-256 values.
-The output is a per-user bilingual NSIS installer.
+The build scripts download only missing artifacts and verify pinned SHA-256
+values. The output is a per-user bilingual NSIS installer. The build machine
+needs network access when a pinned artifact or the WebView2 offline package is
+not already cached; this does not create a network requirement for the shipped
+Full installer.
 
 ## CLI state and diagnostics
 

@@ -17,6 +17,8 @@ All notable changes to MAD Toolbox are documented here.
   installer was produced for each edition.
 - Refreshed the pinned BtbN Windows FFmpeg LGPL asset and binary hashes after
   the upstream rolling `latest` release rotated its GitHub asset ID.
+- Changed Windows NSIS bundles to embed the WebView2 offline installer, so the
+  Full installer can be installed and launched without network access.
 
 ## 0.5.10 - 2026-08-03
 

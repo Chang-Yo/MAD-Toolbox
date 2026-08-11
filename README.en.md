@@ -83,7 +83,10 @@ winget install --id DenoLand.Deno -e
 
 The Full build bundles audited, version-pinned binaries for BBDown,
 FFmpeg/ffprobe, MediaInfo CLI, yt-dlp and Deno. It needs no separate CLI
-installation and uses the same GUI and adapter code as the Lite build.
+installation, and the Windows installer also embeds the WebView2 offline
+installer. Once downloaded, the Windows Full installer and application startup
+do not require an internet connection. It uses the same GUI and adapter code as
+the Lite build.
 
 musicdl is deliberately excluded from both distributions because upstream
 prohibits bundling without explicit permission. Python 3 is also an external

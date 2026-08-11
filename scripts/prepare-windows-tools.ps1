@@ -84,15 +84,10 @@ try {
     if (-not ($FfmpegValid -and $FfprobeValid)) {
       $Archive = Join-Path $TemporaryRoot "ffmpeg.zip"
       $Expanded = Join-Path $TemporaryRoot "ffmpeg"
-      $Headers = @{
-        Accept = "application/octet-stream"
-        "X-GitHub-Api-Version" = "2022-11-28"
-      }
       Get-VerifiedFile `
-        -Url "https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/assets/508806683" `
+        -Url "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-08-10-13-17/ffmpeg-n8.1.2-34-g9b6c8969e0-win64-lgpl-8.1.zip" `
         -Output $Archive `
-        -Sha256 "1ac1d7377c12298c6b592edfc24340f57238ad88c74936ee82d982e33b458b59" `
-        -Headers $Headers
+        -Sha256 "b0531e470d73bf2e0d3e22a3a35f6e890781e0791c496950664da9be9ea8c0ab"
       Expand-VerifiedArchive -Archive $Archive -Destination $Expanded
       $Bin = Get-ChildItem -LiteralPath $Expanded -Filter "ffmpeg.exe" -File -Recurse | Select-Object -First 1
       $Probe = Get-ChildItem -LiteralPath $Expanded -Filter "ffprobe.exe" -File -Recurse | Select-Object -First 1

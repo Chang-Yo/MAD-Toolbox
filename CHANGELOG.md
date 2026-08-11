@@ -15,8 +15,9 @@ All notable changes to MAD Toolbox are documented here.
 - Tightened tag-build validation: Windows and macOS release builds now run the
   frontend formatting check, and Windows packaging verifies that exactly one
   installer was produced for each edition.
-- Refreshed the pinned BtbN Windows FFmpeg LGPL asset and binary hashes after
-  the upstream rolling `latest` release rotated its GitHub asset ID.
+- Pinned the Windows FFmpeg LGPL asset to a dated BtbN build so the Full
+  installer remains reproducible when the upstream rolling `latest` release
+  rotates its assets.
 - Changed Windows NSIS bundles to embed the WebView2 offline installer, so the
   Full installer can be installed and launched without network access.
 

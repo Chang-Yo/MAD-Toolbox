@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-02",
+  "generatedAt": "2026-08-11",
   "target": "x86_64-pc-windows-msvc",
   "minimumWindowsVersion": "10.0.19045",
   "tools": [
@@ -18,16 +18,16 @@
     },
     {
       "name": "FFmpeg and ffprobe",
-      "version": "n8.1 latest (2026-08-02)",
+      "version": "n8.1 latest (2026-08-10)",
       "bundledIn": ["full"],
       "distribution": "BtbN FFmpeg-Builds win64 LGPL static",
       "artifact": "ffmpeg-n8.1-latest-win64-lgpl-8.1.zip",
       "artifactUrl": "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n8.1-latest-win64-lgpl-8.1.zip",
-      "releaseAssetApiUrl": "https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/assets/498933268",
-      "artifactSha256": "53f717ef88d5073c06fb57531af5be7fb6a0703cf1ef4d067a47b169ab9c9d3b",
+      "releaseAssetApiUrl": "https://api.github.com/repos/BtbN/FFmpeg-Builds/releases/assets/508806683",
+      "artifactSha256": "1ac1d7377c12298c6b592edfc24340f57238ad88c74936ee82d982e33b458b59",
       "binarySha256": {
-        "ffmpeg": "0df0daa264f1c6a6dd6e41a0b931b58050726194ee25c18f5e31843545e70e46",
-        "ffprobe": "4a745d4c13cc672b4c84f80cb4fa4af1c32f189d02ef500d076161e06a27d20e"
+        "ffmpeg": "ad62137371b2111d52d29c9bc82d5aecf7065c8f937e95dfed087b2bc63ea88d",
+        "ffprobe": "4014fdd4541d38f6be291afb7f8d2abf15cd7de5be6dc0b7ca5bbfd280500ceb"
       },
       "ffmpegCommit": "9b6c8969e05b4f0b29f0f85cd501be6b3e582e6b",
       "sourceUrl": "https://github.com/FFmpeg/FFmpeg/archive/9b6c8969e05b4f0b29f0f85cd501be6b3e582e6b.tar.gz",

@@ -15,6 +15,8 @@ All notable changes to MAD Toolbox are documented here.
 - Tightened tag-build validation: Windows and macOS release builds now run the
   frontend formatting check, and Windows packaging verifies that exactly one
   installer was produced for each edition.
+- Refreshed the pinned BtbN Windows FFmpeg LGPL asset and binary hashes after
+  the upstream rolling `latest` release rotated its GitHub asset ID.
 
 ## 0.5.10 - 2026-08-03
 

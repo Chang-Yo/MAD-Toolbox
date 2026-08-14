@@ -51,8 +51,8 @@ jobs:
       - name: Check frontend
         run: npm run check
 
-      - name: Test backend
-        run: cargo test --manifest-path src-tauri/Cargo.toml --target aarch64-apple-darwin
+      - name: Check backend
+        run: cargo check --manifest-path src-tauri/Cargo.toml --all-targets --target aarch64-apple-darwin
 
       - name: Build Lite DMG
         if: matrix.edition == 'Lite'

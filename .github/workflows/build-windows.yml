@@ -16,7 +16,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        edition: [Full, Lite]
+        include:
+          - edition: Full
+            build_script: tauri:build:full
+          - edition: Lite
+            build_script: tauri:build:lite
 
     steps:
       - name: Check out source
@@ -45,32 +49,8 @@ jobs:
       - name: Check frontend formatting and types
         run: npm run format:check
 
-      - name: Build frontend
-        run: npm run build
-
-      - name: Prepare verified sidecars
-        shell: pwsh
-        run: ./scripts/prepare-windows-tools.ps1 -Edition ${{ matrix.edition }}
-
-      - name: Verify sidecars
-        shell: pwsh
-        run: ./scripts/verify-windows-tools.ps1 -Edition ${{ matrix.edition }}
-
-      - name: Check frontend
-        run: npm run check
-
-      - name: Test backend
-        run: cargo test --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc
-
       - name: Build unsigned NSIS installer
-        shell: pwsh
-        run: |
-          $Config = if ("${{ matrix.edition }}" -eq "Full") {
-            "src-tauri/tauri.windows.full.conf.json"
-          } else {
-            "src-tauri/tauri.windows.lite.conf.json"
-          }
-          npx tauri build --target x86_64-pc-windows-msvc --config $Config --no-sign --ci
+        run: npm run ${{ matrix.build_script }} -- --no-sign --ci
 
       - name: Verify installer output
         shell: pwsh

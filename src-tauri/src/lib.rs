@@ -1,10 +1,10 @@
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+mod core;
+mod features;
+
+use crate::features::bilibili::login as bilibili_login;
+
 use chrono::Local;
-use qrcode::QrCode;
-use reqwest::{
-    header::{COOKIE, REFERER},
-    Client, Url,
-};
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -12,14 +12,10 @@ use std::{
     ffi::OsString,
     fmt::Write as _,
     path::{Path, PathBuf},
-    process::Stdio,
-    sync::Mutex,
 };
 use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::{
-    io::{AsyncBufReadExt, BufReader},
-    process::{Child, Command},
-    sync::oneshot,
+    process::Command,
     time::{sleep, timeout, Duration},
 };
 use uuid::Uuid;
@@ -53,14 +49,9 @@ fn background_command(program: impl AsRef<std::ffi::OsStr>) -> Command {
     command
 }
 
-#[derive(Default)]
-struct AppState {
-    cancel_senders: Mutex<HashMap<String, oneshot::Sender<()>>>,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-enum ToolName {
+pub(crate) enum ToolName {
     Bbdown,
     YtDlp,
     Musicdl,
@@ -125,29 +116,10 @@ struct DependencyStatus {
     install_hint: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct RunRequest {
-    tool: ToolName,
-    args: Vec<String>,
-    fallback_args: Option<Vec<String>>,
-    working_dir: Option<String>,
-}
-
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct RunResult {
-    job_id: String,
-}
-
-#[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct JobLog {
-    job_id: String,
-    tool: ToolName,
-    stream: &'static str,
-    line: String,
-    timestamp: String,
+pub(crate) struct RunResult {
+    pub(crate) job_id: String,
 }
 
 #[derive(Clone, Serialize)]
@@ -158,51 +130,6 @@ struct JobState {
     state: &'static str,
     exit_code: Option<i32>,
     message: String,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct DiagnosticJob {
-    job_id: String,
-    tool: ToolName,
-    state: String,
-    exit_code: Option<i32>,
-    message: String,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct DiagnosticLog {
-    job_id: String,
-    tool: ToolName,
-    stream: String,
-    line: String,
-    timestamp: String,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct DiagnosticExportRequest {
-    job: DiagnosticJob,
-    logs: Vec<DiagnosticLog>,
-    output_path: String,
-    include_logs: bool,
-    include_dependency_paths: bool,
-    redact_personal_data: bool,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct DiagnosticExportResult {
-    path: String,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct LogExportRequest {
-    job: DiagnosticJob,
-    logs: Vec<DiagnosticLog>,
-    output_path: String,
 }
 
 #[derive(Clone, Default, Serialize, Deserialize)]
@@ -291,7 +218,7 @@ struct MusicdlAdapterOutput {
     results: Vec<MusicdlSearchResult>,
 }
 
-fn command_path() -> OsString {
+pub(crate) fn command_path() -> OsString {
     let inherited = env::var_os("PATH").unwrap_or_default();
     let mut paths = Vec::new();
     #[cfg(target_os = "macos")]
@@ -450,7 +377,7 @@ fn bundled_binary(app: &AppHandle, name: &str) -> Option<PathBuf> {
     candidates.into_iter().find(|path| path.is_file())
 }
 
-fn resolve_tool(app: &AppHandle, tool: &ToolName) -> Option<(PathBuf, bool)> {
+pub(crate) fn resolve_tool(app: &AppHandle, tool: &ToolName) -> Option<(PathBuf, bool)> {
     let bundled = bundled_binary(app, tool.executable()).map(|path| (path, true));
     let system = find_distinct_system_binary(
         tool.executable(),
@@ -473,7 +400,7 @@ fn resolve_tool(app: &AppHandle, tool: &ToolName) -> Option<(PathBuf, bool)> {
     }
 }
 
-#[cfg(any(not(target_os = "windows"), test))]
+#[cfg(not(target_os = "windows"))]
 fn musicdl_launcher_python(script: &str) -> Option<PathBuf> {
     // pipx can generate a shell/Python polyglot launcher. In that form the
     // shebang is /bin/sh and the real virtualenv interpreter is quoted on the
@@ -734,276 +661,32 @@ fn save_app_settings(app: AppHandle, mut settings: AppSettings) -> Result<AppSet
 /// BBDown's own `Program.APP_DIR` is the directory containing the executable.
 /// Run it from that directory so its native `BBDown.data`, config, archive and
 /// QR files stay exactly where the original CLI expects them.
-fn bbdown_directory(executable: &Path) -> Result<PathBuf, String> {
+pub(crate) fn bbdown_directory(executable: &Path) -> Result<PathBuf, String> {
     executable
         .parent()
         .map(Path::to_path_buf)
         .ok_or_else(|| "无法确定 BBDown 所在目录".to_string())
 }
 
-const BBDOWN_QR_GENERATE_URL: &str =
-    "https://passport.bilibili.com/x/passport-login/web/qrcode/generate?source=main-fe-header";
-const BBDOWN_QR_POLL_URL: &str = "https://passport.bilibili.com/x/passport-login/web/qrcode/poll";
-const BILIBILI_NAV_URL: &str = "https://api.bilibili.com/x/web-interface/nav";
-const BBDOWN_USER_AGENT: &str =
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
-const BBDOWN_COOKIE_KEYS: [&str; 7] = [
-    "SESSDATA",
-    "bili_jct",
-    "DedeUserID",
-    "DedeUserID__ckMd5",
-    "sid",
-    "buvid3",
-    "buvid4",
-];
-
-#[cfg(test)]
-fn parse_query_fields(value: &str, separator: char) -> HashMap<String, String> {
-    value
-        .split(separator)
-        .filter_map(|field| {
-            let (key, value) = field.trim().split_once('=')?;
-            let key = key.trim();
-            if key.is_empty() {
-                return None;
-            }
-            Some((key.to_string(), value.trim().to_string()))
-        })
-        .collect()
-}
-
-fn merge_cookie_fields(target: &mut HashMap<String, String>, source: HashMap<String, String>) {
-    for key in BBDOWN_COOKIE_KEYS {
-        if let Some(value) = source.get(key).filter(|value| !value.is_empty()) {
-            target.insert(key.to_string(), value.clone());
-        }
-    }
-}
-
-fn has_required_bbdown_cookie(fields: &HashMap<String, String>) -> bool {
-    ["SESSDATA", "bili_jct", "DedeUserID"]
-        .iter()
-        .all(|key| fields.get(*key).is_some_and(|value| !value.is_empty()))
-}
-
-fn cookie_header(fields: &HashMap<String, String>) -> String {
-    BBDOWN_COOKIE_KEYS
-        .iter()
-        .filter_map(|key| {
-            fields
-                .get(*key)
-                .map(|value| format!("{key}={}", value.replace(',', "%2C")))
-        })
-        .collect::<Vec<_>>()
-        .join(";")
-}
-
-fn merge_cookie_url(target: &mut HashMap<String, String>, value: &str) {
-    if let Ok(url) = Url::parse(value) {
-        let fields = url
-            .query_pairs()
-            .map(|(key, value)| (key.into_owned(), value.into_owned()))
-            .collect();
-        merge_cookie_fields(target, fields);
-    }
-}
-
-async fn validate_bbdown_cookie(
-    client: &Client,
-    nav_url: &str,
-    cookie: &str,
-) -> Result<(), String> {
-    let response = client
-        .get(nav_url)
-        .header(COOKIE, cookie)
-        .header(REFERER, "https://www.bilibili.com/")
-        .send()
-        .await
-        .map_err(|error| format!("验证 BBDown Cookie 失败：{error}"))?;
-    if !response.status().is_success() {
-        return Err(format!(
-            "验证 BBDown Cookie 失败：HTTP {}",
-            response.status()
-        ));
-    }
-    let body: serde_json::Value = response
-        .json()
-        .await
-        .map_err(|error| format!("解析账号验证结果失败：{error}"))?;
-    if body
-        .pointer("/data/isLogin")
-        .and_then(serde_json::Value::as_bool)
-        == Some(true)
-    {
-        Ok(())
-    } else {
-        Err("BBDown Cookie 数据不完整或账号验证未通过".into())
-    }
-}
-
-fn save_bbdown_data(data_path: &Path, completed: &str) -> Result<(), String> {
-    let temporary = data_path.with_extension(format!("data.{}.tmp", Uuid::new_v4()));
-    std::fs::write(&temporary, completed).map_err(|error| format!("写入登录数据失败：{error}"))?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&temporary, std::fs::Permissions::from_mode(0o600))
-            .map_err(|error| format!("设置登录数据权限失败：{error}"))?;
-    }
-    std::fs::rename(&temporary, data_path)
-        .map_err(|error| format!("保存完整 BBDown.data 失败：{error}"))?;
-    Ok(())
-}
-
-async fn validate_and_save_bbdown_data(
-    client: &Client,
-    data_path: &Path,
-    cookies: &HashMap<String, String>,
-) -> Result<(), String> {
-    if !has_required_bbdown_cookie(cookies) {
-        return Err("B站二维码轮询没有返回完整 Cookie（SESSDATA、bili_jct、DedeUserID）".into());
-    }
-    let completed = cookie_header(cookies);
-    validate_bbdown_cookie(client, BILIBILI_NAV_URL, &completed).await?;
-    save_bbdown_data(data_path, &completed)
-}
-
 #[derive(Debug)]
 enum BbdownLoginError {
-    Cancelled,
     Failed(String),
-}
-
-async fn generate_bbdown_qr(client: &Client) -> Result<(String, String), String> {
-    let response = client
-        .get(BBDOWN_QR_GENERATE_URL)
-        .header(REFERER, "https://www.bilibili.com/")
-        .send()
-        .await
-        .map_err(|error| format!("获取 B站登录地址失败：{error}"))?;
-    if !response.status().is_success() {
-        return Err(format!("获取 B站登录地址失败：HTTP {}", response.status()));
-    }
-    let body: serde_json::Value = response
-        .json()
-        .await
-        .map_err(|error| format!("解析 B站登录地址失败：{error}"))?;
-    if body.pointer("/code").and_then(serde_json::Value::as_i64) != Some(0) {
-        return Err(format!(
-            "B站登录地址接口失败：{}",
-            body.pointer("/message")
-                .and_then(serde_json::Value::as_str)
-                .unwrap_or("未知错误")
-        ));
-    }
-    let url = body
-        .pointer("/data/url")
-        .and_then(serde_json::Value::as_str)
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| "B站登录接口没有返回二维码地址".to_string())?;
-    let qrcode_key = body
-        .pointer("/data/qrcode_key")
-        .and_then(serde_json::Value::as_str)
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| "B站登录接口没有返回二维码密钥".to_string())?;
-    Ok((url.to_string(), qrcode_key.to_string()))
-}
-
-fn bbdown_qr_data_url(url: &str) -> Result<String, String> {
-    let code =
-        QrCode::new(url.as_bytes()).map_err(|error| format!("生成登录二维码失败：{error}"))?;
-    let svg = code
-        .render::<qrcode::render::svg::Color>()
-        .min_dimensions(320, 320)
-        .build();
-    Ok(format!(
-        "data:image/svg+xml;base64,{}",
-        BASE64.encode(svg.as_bytes())
-    ))
-}
-
-async fn poll_bbdown_qr(
-    client: &Client,
-    qrcode_key: &str,
-) -> Result<(i64, HashMap<String, String>, Option<String>), String> {
-    poll_bbdown_qr_at(client, BBDOWN_QR_POLL_URL, qrcode_key).await
-}
-
-async fn poll_bbdown_qr_at(
-    client: &Client,
-    poll_url: &str,
-    qrcode_key: &str,
-) -> Result<(i64, HashMap<String, String>, Option<String>), String> {
-    let mut poll_url =
-        Url::parse(poll_url).map_err(|error| format!("解析 B站轮询地址失败：{error}"))?;
-    poll_url
-        .query_pairs_mut()
-        .append_pair("qrcode_key", qrcode_key)
-        .append_pair("source", "main-fe-header");
-    let response = client
-        .get(poll_url)
-        .header(REFERER, "https://www.bilibili.com/")
-        .send()
-        .await
-        .map_err(|error| format!("轮询 B站登录状态失败：{error}"))?;
-    if !response.status().is_success() {
-        return Err(format!("轮询 B站登录状态失败：HTTP {}", response.status()));
-    }
-
-    // The current Bilibili response may intentionally leave the credentials
-    // out of data.url and deliver them only as Set-Cookie headers. Keep these
-    // values before consuming the response body, matching the behavior of
-    // current Bilibili clients.
-    let response_cookies = response
-        .cookies()
-        .map(|cookie| (cookie.name().to_string(), cookie.value().to_string()))
-        .collect::<Vec<_>>();
-    let body: serde_json::Value = response
-        .json()
-        .await
-        .map_err(|error| format!("解析 B站登录状态失败：{error}"))?;
-    let code = body
-        .pointer("/data/code")
-        .and_then(serde_json::Value::as_i64)
-        .ok_or_else(|| "B站登录状态响应缺少 data.code".to_string())?;
-    let mut cookies = HashMap::new();
-    merge_cookie_fields(
-        &mut cookies,
-        response_cookies.into_iter().collect::<HashMap<_, _>>(),
-    );
-    let url = body
-        .pointer("/data/url")
-        .and_then(serde_json::Value::as_str)
-        .filter(|value| !value.is_empty())
-        .map(str::to_string);
-    if let Some(value) = &url {
-        merge_cookie_url(&mut cookies, value);
-    }
-    Ok((code, cookies, url))
 }
 
 async fn run_bbdown_login(
     app: &AppHandle,
     job_id: &str,
     data_path: &Path,
-    cancel_rx: &mut oneshot::Receiver<()>,
 ) -> Result<(), BbdownLoginError> {
     let client = Client::builder()
-        .user_agent(BBDOWN_USER_AGENT)
+        .user_agent(bilibili_login::BBDOWN_USER_AGENT)
         .build()
         .map_err(|error| BbdownLoginError::Failed(format!("初始化 B站登录请求失败：{error}")))?;
 
-    emit_log(
-        app,
-        job_id,
-        &ToolName::Bbdown,
-        "stdout",
-        "获取登录地址...".into(),
-    );
-    let (url, qrcode_key) = generate_bbdown_qr(&client)
+    let (url, qrcode_key) = bilibili_login::generate_bbdown_qr(&client)
         .await
         .map_err(BbdownLoginError::Failed)?;
-    let data_url = bbdown_qr_data_url(&url).map_err(BbdownLoginError::Failed)?;
+    let data_url = bilibili_login::bbdown_qr_data_url(&url).map_err(BbdownLoginError::Failed)?;
     let _ = app.emit(
         "bbdown-login-qr",
         LoginQr {
@@ -1011,49 +694,18 @@ async fn run_bbdown_login(
             data_url,
         },
     );
-    emit_log(
-        app,
-        job_id,
-        &ToolName::Bbdown,
-        "stdout",
-        "生成二维码成功，请打开并扫描，或扫描打印的二维码".into(),
-    );
-
-    let mut scanned = false;
     for _ in 0..180 {
-        tokio::select! {
-            _ = &mut *cancel_rx => return Err(BbdownLoginError::Cancelled),
-            _ = sleep(Duration::from_secs(1)) => {}
-        }
-        let (status, cookies, _url) = poll_bbdown_qr(&client, &qrcode_key)
+        sleep(Duration::from_secs(1)).await;
+        let (status, cookies, _url) = bilibili_login::poll_bbdown_qr(&client, &qrcode_key)
             .await
             .map_err(BbdownLoginError::Failed)?;
         match status {
-            86101 => {}
-            86090 => {
-                if !scanned {
-                    scanned = true;
-                    emit_log(
-                        app,
-                        job_id,
-                        &ToolName::Bbdown,
-                        "stdout",
-                        "扫码成功，请确认...".into(),
-                    );
-                }
-            }
+            86101 | 86090 => {}
             86038 => {
                 return Err(BbdownLoginError::Failed("二维码已过期，请重新扫码".into()));
             }
             0 => {
-                emit_log(
-                    app,
-                    job_id,
-                    &ToolName::Bbdown,
-                    "stdout",
-                    "登录成功，正在保存 Cookie...".into(),
-                );
-                validate_and_save_bbdown_data(&client, data_path, &cookies)
+                bilibili_login::validate_and_save_bbdown_data(&client, data_path, &cookies)
                     .await
                     .map_err(BbdownLoginError::Failed)?;
                 return Ok(());
@@ -1068,23 +720,12 @@ async fn run_bbdown_login(
     Err(BbdownLoginError::Failed("二维码登录超时".into()))
 }
 
-async fn spawn_bbdown_login_job(
-    app: AppHandle,
-    state: State<'_, AppState>,
-    working_dir: PathBuf,
-) -> Result<RunResult, String> {
+async fn spawn_bbdown_login_job(app: AppHandle, working_dir: PathBuf) -> Result<RunResult, String> {
     std::fs::create_dir_all(&working_dir).map_err(|error| error.to_string())?;
     let data_path = working_dir.join("BBDown.data");
     let _ = std::fs::remove_file(working_dir.join("qrcode.png"));
     let job_id = Uuid::new_v4().to_string();
-    let (cancel_tx, mut cancel_rx) = oneshot::channel();
-    state
-        .cancel_senders
-        .lock()
-        .map_err(|_| "任务状态锁定失败".to_string())?
-        .insert(job_id.clone(), cancel_tx);
     let tool = ToolName::Bbdown;
-    emit_log(&app, &job_id, &tool, "system", "$ BBDown login".into());
     let _ = app.emit(
         "job-state",
         JobState {
@@ -1099,28 +740,17 @@ async fn spawn_bbdown_login_job(
     let task_app = app.clone();
     let task_job_id = job_id.clone();
     tauri::async_runtime::spawn(async move {
-        let outcome = run_bbdown_login(&task_app, &task_job_id, &data_path, &mut cancel_rx).await;
+        let outcome = run_bbdown_login(&task_app, &task_job_id, &data_path).await;
         let (state_name, exit_code, message) = match outcome {
             Ok(()) => (
                 "completed",
                 Some(0),
                 "BBDown Cookie 数据已补全并验证登录成功".to_string(),
             ),
-            Err(BbdownLoginError::Cancelled) => ("cancelled", None, "BBDown 已取消".to_string()),
             Err(BbdownLoginError::Failed(error)) => {
                 ("failed", None, format!("BBDown 账号未登录：{error}"))
             }
         };
-        if let Ok(mut senders) = task_app.state::<AppState>().cancel_senders.lock() {
-            senders.remove(&task_job_id);
-        }
-        emit_log(
-            &task_app,
-            &task_job_id,
-            &ToolName::Bbdown,
-            "system",
-            message.clone(),
-        );
         let _ = task_app.emit(
             "job-state",
             JobState {
@@ -1153,7 +783,7 @@ fn strip_ansi_codes(line: &str) -> String {
     output
 }
 
-fn redact_output_line(line: &str) -> String {
+pub(crate) fn redact_output_line(line: &str) -> String {
     let mut redacted = strip_ansi_codes(line);
     for key in [
         "SESSDATA",
@@ -1306,341 +936,6 @@ fn platform_system_info() -> (String, String, String, String) {
     }
 }
 
-fn safe_command(tool: &ToolName, args: &[String]) -> String {
-    const SECRET_FLAGS: &[&str] = &[
-        "--cookie",
-        "-c",
-        "--access-token",
-        "-token",
-        "--proxy",
-        "--username",
-        "--password",
-        "--cookies-from-browser",
-    ];
-    let mut output = vec![tool.executable().to_string()];
-    let mut redact_next = false;
-    for arg in args {
-        if redact_next {
-            output.push("***".into());
-            redact_next = false;
-        } else {
-            output.push(arg.clone());
-            redact_next = if matches!(tool, ToolName::Musicdl) {
-                [
-                    "-i",
-                    "--init-music-clients-cfg",
-                    "-r",
-                    "--requests-overrides",
-                ]
-                .contains(&arg.as_str())
-            } else {
-                SECRET_FLAGS.contains(&arg.as_str())
-            };
-        }
-    }
-    output.join(" ")
-}
-
-fn validate_args(args: &[String]) -> Result<(), String> {
-    if args.len() > 500 {
-        return Err("参数数量超过安全限制".into());
-    }
-    if args.iter().any(|arg| arg.contains('\0')) {
-        return Err("参数包含无效字符".into());
-    }
-    Ok(())
-}
-
-fn ensure_ffmpeg_location(args: &mut Vec<String>, ffmpeg: &Path) {
-    if !args.iter().any(|arg| arg == "--ffmpeg-location") {
-        args.splice(
-            0..0,
-            [
-                "--ffmpeg-location".into(),
-                ffmpeg.to_string_lossy().into_owned(),
-            ],
-        );
-    }
-}
-
-fn emit_log(app: &AppHandle, job_id: &str, tool: &ToolName, stream: &'static str, line: String) {
-    let _ = app.emit(
-        "job-log",
-        JobLog {
-            job_id: job_id.into(),
-            tool: tool.clone(),
-            stream,
-            line,
-            timestamp: Local::now().format("%H:%M:%S").to_string(),
-        },
-    );
-}
-
-fn yt_dlp_browser_cookie_fallback_requested(line: &str) -> bool {
-    let normalized = line.to_ascii_lowercase().replace('’', "'");
-    [
-        "sign in to confirm",
-        "confirm you're not a bot",
-        "use --cookies-from-browser",
-        "use --cookies",
-    ]
-    .iter()
-    .any(|marker| normalized.contains(marker))
-}
-
-async fn stream_output<R>(
-    reader: R,
-    app: AppHandle,
-    job_id: String,
-    tool: ToolName,
-    stream: &'static str,
-) -> bool
-where
-    R: tokio::io::AsyncRead + Unpin,
-{
-    let mut reader = BufReader::new(reader);
-    let mut bytes = Vec::new();
-    let mut browser_cookie_fallback_requested = false;
-    loop {
-        bytes.clear();
-        let Ok(length) = reader.read_until(b'\n', &mut bytes).await else {
-            break;
-        };
-        if length == 0 {
-            break;
-        }
-        while matches!(bytes.last(), Some(b'\n' | b'\r')) {
-            bytes.pop();
-        }
-        let line = String::from_utf8_lossy(&bytes);
-        if matches!(tool, ToolName::YtDlp) && yt_dlp_browser_cookie_fallback_requested(&line) {
-            browser_cookie_fallback_requested = true;
-        }
-        // BBDown also prints an ANSI-colored QR code. The GUI presents the
-        // generated PNG instead, so omit those unreadable terminal rows.
-        if matches!(tool, ToolName::Bbdown)
-            && line.chars().filter(|character| *character == '█').count() > 40
-        {
-            continue;
-        }
-        // Preserve the original CLI output in the task center; credential
-        // redaction remains available for the diagnostic ZIP export.
-        emit_log(&app, &job_id, &tool, stream, strip_ansi_codes(&line));
-    }
-    browser_cookie_fallback_requested
-}
-
-fn spawn_child(
-    executable: &Path,
-    args: &[String],
-    working_dir: Option<&Path>,
-    tool: &ToolName,
-) -> Result<Child, String> {
-    let mut command = Command::new(executable);
-    hide_async_command_window(&mut command);
-    command
-        .args(args)
-        .env("PATH", command_path())
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .kill_on_drop(true);
-    if let Some(directory) = working_dir {
-        std::fs::create_dir_all(directory).map_err(|error| error.to_string())?;
-        command.current_dir(directory);
-    }
-    command
-        .spawn()
-        .map_err(|error| format!("无法启动 {}：{error}", tool.label()))
-}
-
-async fn wait_for_child(
-    mut child: Child,
-    app: AppHandle,
-    job_id: String,
-    tool: ToolName,
-    cancel_rx: &mut oneshot::Receiver<()>,
-) -> (&'static str, Option<i32>, String, bool, bool) {
-    let stdout = child.stdout.take();
-    let stderr = child.stderr.take();
-    let task_app = app.clone();
-    let task_job_id = job_id.clone();
-    let stdout_task = stdout.map(|pipe| {
-        tauri::async_runtime::spawn(stream_output(
-            pipe,
-            task_app.clone(),
-            task_job_id.clone(),
-            tool.clone(),
-            "stdout",
-        ))
-    });
-    let stderr_task = stderr.map(|pipe| {
-        tauri::async_runtime::spawn(stream_output(
-            pipe,
-            task_app,
-            task_job_id,
-            tool.clone(),
-            "stderr",
-        ))
-    });
-
-    let (state_name, exit_code, message, cancelled) = tokio::select! {
-        result = child.wait() => {
-            match result {
-                Ok(status) if status.success() => {
-                    ("completed", status.code(), format!("{} 已完成", tool.label()), false)
-                }
-                Ok(status) => ("failed", status.code(), format!("{} 执行失败", tool.label()), false),
-                Err(error) => ("failed", None, format!("{} 等待进程失败：{error}", tool.label()), false),
-            }
-        }
-        _ = cancel_rx => {
-            let _ = child.kill().await;
-            ("cancelled", None, format!("{} 已取消", tool.label()), true)
-        }
-    };
-
-    let stdout_requested = match stdout_task {
-        Some(task) => task.await.unwrap_or(false),
-        None => false,
-    };
-    let stderr_requested = match stderr_task {
-        Some(task) => task.await.unwrap_or(false),
-        None => false,
-    };
-    (
-        state_name,
-        exit_code,
-        message,
-        cancelled,
-        stdout_requested || stderr_requested,
-    )
-}
-
-async fn spawn_job(
-    app: AppHandle,
-    state: State<'_, AppState>,
-    tool: ToolName,
-    executable: PathBuf,
-    args: Vec<String>,
-    working_dir: Option<PathBuf>,
-    fallback_args: Option<Vec<String>>,
-) -> Result<RunResult, String> {
-    validate_args(&args)?;
-    if let Some(fallback_args) = &fallback_args {
-        validate_args(fallback_args)?;
-    }
-    let job_id = Uuid::new_v4().to_string();
-    let child = spawn_child(&executable, &args, working_dir.as_deref(), &tool)?;
-    let (cancel_tx, mut cancel_rx) = oneshot::channel();
-    state
-        .cancel_senders
-        .lock()
-        .map_err(|_| "任务状态锁定失败".to_string())?
-        .insert(job_id.clone(), cancel_tx);
-
-    emit_log(
-        &app,
-        &job_id,
-        &tool,
-        "system",
-        format!("$ {}", safe_command(&tool, &args)),
-    );
-    let _ = app.emit(
-        "job-state",
-        JobState {
-            job_id: job_id.clone(),
-            tool: tool.clone(),
-            state: "running",
-            exit_code: None,
-            message: format!("{} 正在运行", tool.label()),
-        },
-    );
-
-    let task_app = app.clone();
-    let task_job_id = job_id.clone();
-    let task_tool = tool.clone();
-    tauri::async_runtime::spawn(async move {
-        let (mut state_name, mut exit_code, mut message, cancelled, browser_cookie_error) =
-            wait_for_child(
-                child,
-                task_app.clone(),
-                task_job_id.clone(),
-                task_tool.clone(),
-                &mut cancel_rx,
-            )
-            .await;
-
-        if !cancelled && cancel_rx.try_recv().is_ok() {
-            state_name = "cancelled";
-            exit_code = None;
-            message = format!("{} 已取消", task_tool.label());
-        }
-
-        if state_name == "failed" && browser_cookie_error && !cancelled {
-            if let Some(retry_args) = fallback_args.as_ref() {
-                emit_log(
-                    &task_app,
-                    &task_job_id,
-                    &task_tool,
-                    "system",
-                    "yt-dlp 首次请求未使用浏览器 Cookie，检测到需要登录，正在使用浏览器 Cookie 重试。"
-                        .into(),
-                );
-                emit_log(
-                    &task_app,
-                    &task_job_id,
-                    &task_tool,
-                    "system",
-                    format!("$ {}", safe_command(&task_tool, retry_args)),
-                );
-                match spawn_child(&executable, retry_args, working_dir.as_deref(), &task_tool) {
-                    Ok(retry_child) => {
-                        let (retry_state, retry_exit_code, retry_message, _, _) = wait_for_child(
-                            retry_child,
-                            task_app.clone(),
-                            task_job_id.clone(),
-                            task_tool.clone(),
-                            &mut cancel_rx,
-                        )
-                        .await;
-                        state_name = retry_state;
-                        exit_code = retry_exit_code;
-                        message = retry_message;
-                    }
-                    Err(error) => {
-                        state_name = "failed";
-                        exit_code = None;
-                        message = format!("yt-dlp 浏览器 Cookie 重试无法启动：{error}");
-                    }
-                }
-            }
-        }
-        if let Ok(mut senders) = task_app.state::<AppState>().cancel_senders.lock() {
-            senders.remove(&task_job_id);
-        }
-        // Keep files generated by the CLI itself, including qrcode.png.
-        emit_log(
-            &task_app,
-            &task_job_id,
-            &task_tool,
-            "system",
-            message.clone(),
-        );
-        let _ = task_app.emit(
-            "job-state",
-            JobState {
-                job_id: task_job_id,
-                tool: task_tool,
-                state: state_name,
-                exit_code,
-                message,
-            },
-        );
-    });
-    Ok(RunResult { job_id })
-}
-
 #[tauri::command]
 async fn dependency_status(app: AppHandle) -> Vec<DependencyStatus> {
     let tools = [
@@ -1725,311 +1020,6 @@ async fn dependency_status(app: AppHandle) -> Vec<DependencyStatus> {
 }
 
 #[tauri::command]
-fn export_job_log(request: LogExportRequest) -> Result<DiagnosticExportResult, String> {
-    let output = PathBuf::from(request.output_path);
-    let parent = output
-        .parent()
-        .filter(|path| path.is_dir())
-        .ok_or_else(|| "日志导出目录不存在".to_string())?;
-    let mut text = format!(
-        "MAD Toolbox task log\njob: {}\ntool: {}\nstate: {}\nmessage: {}\n\n",
-        request.job.job_id,
-        request.job.tool.label(),
-        request.job.state,
-        redact_output_line(&request.job.message)
-    );
-    for log in request.logs {
-        let _ = writeln!(
-            text,
-            "[{}] [{}] [{}] {}",
-            log.timestamp,
-            log.tool.label(),
-            log.stream,
-            &log.line
-        );
-    }
-    let temporary = parent.join(format!(".mad-toolbox-log-{}.tmp", Uuid::new_v4()));
-    std::fs::write(&temporary, text).map_err(|error| format!("无法写入任务日志：{error}"))?;
-    if output.is_file() {
-        std::fs::remove_file(&output).map_err(|error| format!("无法覆盖任务日志：{error}"))?;
-    }
-    std::fs::rename(&temporary, &output).map_err(|error| format!("无法保存任务日志：{error}"))?;
-    Ok(DiagnosticExportResult {
-        path: output.to_string_lossy().into_owned(),
-    })
-}
-
-#[tauri::command]
-async fn export_job_diagnostics(
-    app: AppHandle,
-    request: DiagnosticExportRequest,
-) -> Result<DiagnosticExportResult, String> {
-    let output = PathBuf::from(request.output_path.trim());
-    if output.file_name().is_none()
-        || output
-            .extension()
-            .and_then(|value| value.to_str())
-            .map(|value| !value.eq_ignore_ascii_case("zip"))
-            .unwrap_or(true)
-    {
-        return Err("诊断包导出路径必须以 .zip 结尾".into());
-    }
-    let parent = output
-        .parent()
-        .filter(|path| path.is_dir())
-        .ok_or_else(|| "诊断包导出目录不存在".to_string())?;
-    if output.exists() && !output.is_file() {
-        return Err("诊断包导出目标不是普通文件".into());
-    }
-    let temporary_output = parent.join(format!(".mad-toolbox-{}.tmp.zip", Uuid::new_v4()));
-
-    let export_root = app_data_dir(&app)?
-        .join("diagnostic-exports")
-        .join(Uuid::new_v4().to_string());
-    let package_name = format!(
-        "MAD-Toolbox-Diagnostics-{}",
-        request.job.job_id.chars().take(8).collect::<String>()
-    );
-    let package_dir = export_root.join(package_name);
-    std::fs::create_dir_all(&package_dir)
-        .map_err(|error| format!("无法创建诊断包临时目录：{error}"))?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&export_root, std::fs::Permissions::from_mode(0o700))
-            .map_err(|error| error.to_string())?;
-    }
-
-    let home = env::var(if cfg!(target_os = "windows") {
-        "USERPROFILE"
-    } else {
-        "HOME"
-    })
-    .ok();
-    let sanitize = |value: &str| {
-        sanitize_diagnostic_text(value, request.redact_personal_data, home.as_deref())
-    };
-    let created_at = Local::now();
-    let app_version = app.package_info().version.to_string();
-    let (os_version, os_build, cpu, memory) = platform_system_info();
-    let locale = env::var("LC_ALL")
-        .or_else(|_| env::var("LANG"))
-        .unwrap_or_else(|_| "未知".into());
-
-    let mut dependencies = dependency_status(app.clone()).await;
-    for dependency in &mut dependencies {
-        if !request.include_dependency_paths {
-            dependency.path = None;
-        } else if let Some(path) = &dependency.path {
-            dependency.path = Some(sanitize(path));
-        }
-        dependency.install_hint = None;
-    }
-
-    let logs = if request.include_logs {
-        request
-            .logs
-            .iter()
-            .map(|log| {
-                serde_json::json!({
-                    "timestamp": log.timestamp,
-                    "tool": log.tool,
-                    "stream": log.stream,
-                    "line": sanitize(&log.line),
-                })
-            })
-            .collect::<Vec<_>>()
-    } else {
-        Vec::new()
-    };
-    let diagnostics = serde_json::json!({
-        "schemaVersion": 1,
-        "createdAt": created_at.to_rfc3339(),
-        "application": {
-            "name": app.package_info().name,
-            "version": app_version,
-        },
-        "system": {
-            "os": env::consts::OS,
-            "architecture": env::consts::ARCH,
-            "osVersion": os_version,
-            "osBuild": os_build,
-            "cpu": cpu,
-            "memory": memory,
-            "locale": locale,
-            "timezoneOffset": created_at.format("%:z").to_string(),
-        },
-        "task": {
-            "jobId": request.job.job_id,
-            "tool": request.job.tool,
-            "state": request.job.state,
-            "exitCode": request.job.exit_code,
-            "message": sanitize(&request.job.message),
-        },
-        "dependencies": dependencies,
-        "exportOptions": {
-            "logsIncluded": request.include_logs,
-            "dependencyPathsIncluded": request.include_dependency_paths,
-            "personalDataRedacted": request.redact_personal_data,
-            "credentialsAlwaysRedacted": true,
-            "secureStoreAndTemplatesExcluded": true,
-        },
-        "logs": logs,
-    });
-    let json = serde_json::to_vec_pretty(&diagnostics)
-        .map_err(|error| format!("无法生成诊断信息：{error}"))?;
-    std::fs::write(package_dir.join("diagnostics.json"), json)
-        .map_err(|error| format!("无法写入诊断信息：{error}"))?;
-
-    let summary = format!(
-        "MAD Toolbox 诊断包\n\
-         \n\
-         创建时间：{}\n\
-         应用版本：{}\n\
-         系统：{} {} ({}) / {}\n\
-         CPU：{}\n\
-         内存：{}\n\
-         区域：{}\n\
-         \n\
-         任务 ID：{}\n\
-         工具：{}\n\
-         状态：{}\n\
-         退出码：{}\n\
-         消息：{}\n\
-         \n\
-         日志：{}\n\
-         依赖路径：{}\n\
-         隐私脱敏：{}\n",
-        created_at.to_rfc3339(),
-        app_version,
-        env::consts::OS,
-        os_version,
-        os_build,
-        env::consts::ARCH,
-        cpu,
-        memory,
-        locale,
-        request.job.job_id,
-        request.job.tool.label(),
-        request.job.state,
-        request
-            .job
-            .exit_code
-            .map(|value| value.to_string())
-            .unwrap_or_else(|| "无".into()),
-        sanitize(&request.job.message),
-        if request.include_logs {
-            format!("已包含 {} 条", request.logs.len())
-        } else {
-            "未包含".into()
-        },
-        if request.include_dependency_paths {
-            "已包含"
-        } else {
-            "未包含"
-        },
-        if request.redact_personal_data {
-            "已启用"
-        } else {
-            "未启用"
-        },
-    );
-    std::fs::write(package_dir.join("summary.txt"), summary)
-        .map_err(|error| format!("无法写入诊断摘要：{error}"))?;
-    std::fs::write(
-        package_dir.join("README.txt"),
-        "此诊断包由 MAD Toolbox 在本机生成，不会自动上传。\n\
-         诊断功能不会读取设置模板。\n\
-         Cookie、Token、密码和代理认证等凭据始终会被隐藏。\n\
-         请在提交给开发者前检查其中内容。\n\
-         脱敏为尽力而为：第三方工具输出、文件名或自定义参数仍可能包含个人信息。\n",
-    )
-    .map_err(|error| format!("无法写入诊断说明：{error}"))?;
-    if request.include_logs {
-        let text = request
-            .logs
-            .iter()
-            .map(|log| {
-                format!(
-                    "{} [{}/{}] {}",
-                    log.timestamp,
-                    log.tool.label(),
-                    log.stream,
-                    sanitize(&log.line)
-                )
-            })
-            .collect::<Vec<_>>()
-            .join("\n");
-        std::fs::write(package_dir.join("task-logs.txt"), text)
-            .map_err(|error| format!("无法写入任务日志：{error}"))?;
-    }
-
-    #[cfg(target_os = "macos")]
-    let archive_result = background_command("/usr/bin/ditto")
-        .args(["-c", "-k", "--norsrc", "--keepParent"])
-        .arg(&package_dir)
-        .arg(&temporary_output)
-        .kill_on_drop(true)
-        .output()
-        .await
-        .map_err(|error| format!("无法启动 ZIP 打包工具：{error}"));
-    #[cfg(target_os = "windows")]
-    let archive_result = background_command("tar.exe")
-        .args(["-a", "-c", "-f"])
-        .arg(&temporary_output)
-        .arg("-C")
-        .arg(&export_root)
-        .arg(
-            package_dir
-                .file_name()
-                .ok_or_else(|| "诊断包临时目录无效".to_string())?,
-        )
-        .kill_on_drop(true)
-        .output()
-        .await
-        .map_err(|error| format!("无法启动 ZIP 打包工具：{error}"));
-    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-    let archive_result: Result<std::process::Output, String> =
-        Err("当前系统暂不支持导出诊断包".into());
-
-    let cleanup_result = std::fs::remove_dir_all(&export_root);
-    let archive = archive_result?;
-    if !archive.status.success() {
-        let _ = std::fs::remove_file(&temporary_output);
-        let reason = String::from_utf8_lossy(&archive.stderr).trim().to_string();
-        return Err(format!("无法生成诊断 ZIP：{reason}"));
-    }
-    if cleanup_result.is_err() {
-        // The ZIP is valid; stale app-private temporary data can be cleaned later.
-    }
-    if !temporary_output.is_file()
-        || temporary_output
-            .metadata()
-            .map(|value| value.len())
-            .unwrap_or(0)
-            == 0
-    {
-        let _ = std::fs::remove_file(&temporary_output);
-        return Err("诊断 ZIP 未正确生成".into());
-    }
-    if output.exists() {
-        std::fs::remove_file(&output).map_err(|error| format!("无法覆盖已有诊断包：{error}"))?;
-    }
-    std::fs::rename(&temporary_output, &output).map_err(|error| {
-        let _ = std::fs::remove_file(&temporary_output);
-        format!("无法保存诊断 ZIP：{error}")
-    })?;
-    let exported_path = output
-        .canonicalize()
-        .unwrap_or_else(|_| parent.join(output.file_name().unwrap()))
-        .to_string_lossy()
-        .into_owned();
-    Ok(DiagnosticExportResult {
-        path: exported_path,
-    })
-}
-
-#[tauri::command]
 async fn ffmpeg_encoders(app: AppHandle) -> Result<Vec<String>, String> {
     let (ffmpeg, _) =
         resolve_tool(&app, &ToolName::Ffmpeg).ok_or_else(|| "未找到 FFmpeg".to_string())?;
@@ -2063,476 +1053,6 @@ async fn ffmpeg_encoders(app: AppHandle) -> Result<Vec<String>, String> {
     encoders.sort();
     encoders.dedup();
     Ok(encoders)
-}
-
-#[tauri::command]
-async fn run_tool(
-    app: AppHandle,
-    state: State<'_, AppState>,
-    mut request: RunRequest,
-) -> Result<RunResult, String> {
-    if let Some(fallback_args) = request.fallback_args.as_ref() {
-        if !matches!(request.tool, ToolName::YtDlp) {
-            return Err("浏览器 Cookie 兜底只能用于 yt-dlp".into());
-        }
-        if !fallback_args
-            .iter()
-            .any(|arg| arg == "--cookies-from-browser")
-        {
-            return Err("浏览器 Cookie 兜底参数缺少 --cookies-from-browser".into());
-        }
-        validate_args(fallback_args)?;
-    }
-    let (resolved_executable, _bundled) = resolve_tool(&app, &request.tool)
-        .ok_or_else(|| format!("未找到 {}，请先安装依赖", request.tool.label()))?;
-    let executable = resolved_executable;
-    let is_login = matches!(request.tool, ToolName::Bbdown)
-        && request.args.first().map(String::as_str) == Some("login");
-    if matches!(request.tool, ToolName::YtDlp)
-        && !request.args.iter().any(|arg| arg == "--ffmpeg-location")
-    {
-        if let Some((ffmpeg, _)) = resolve_tool(&app, &ToolName::Ffmpeg) {
-            ensure_ffmpeg_location(&mut request.args, &ffmpeg);
-            if let Some(fallback_args) = request.fallback_args.as_mut() {
-                ensure_ffmpeg_location(fallback_args, &ffmpeg);
-            }
-        }
-    }
-
-    let working_dir = if matches!(request.tool, ToolName::Bbdown) {
-        Some(bbdown_directory(&executable)?)
-    } else {
-        request.working_dir.map(PathBuf::from)
-    };
-
-    if is_login {
-        let directory = working_dir.ok_or_else(|| "无法确定 BBDown 工作目录".to_string())?;
-        return spawn_bbdown_login_job(app, state, directory).await;
-    }
-
-    spawn_job(
-        app,
-        state,
-        request.tool,
-        executable,
-        request.args,
-        working_dir,
-        request.fallback_args,
-    )
-    .await
-}
-
-#[tauri::command]
-async fn musicdl_search(
-    app: AppHandle,
-    state: State<'_, AppState>,
-    mut request: MusicdlSearchRequest,
-) -> Result<RunResult, String> {
-    request.keyword = request.keyword.trim().to_string();
-    request.music_sources = request
-        .music_sources
-        .into_iter()
-        .map(|source| source.trim().to_string())
-        .filter(|source| !source.is_empty())
-        .collect();
-    if request.keyword.is_empty() {
-        return Err("请填写歌曲、歌手或专辑关键词".into());
-    }
-    if request.music_sources.is_empty() {
-        return Err("请至少选择一个音乐源".into());
-    }
-    if request.music_sources.len() > 60 {
-        return Err("音乐源数量超过安全限制".into());
-    }
-    request.search_size_per_source = request.search_size_per_source.clamp(1, 100);
-    for (label, value) in [
-        ("客户端设置", &request.init_music_clients_cfg),
-        ("请求设置", &request.requests_overrides),
-        ("线程设置", &request.clients_threadings),
-        ("搜索规则", &request.search_rules),
-    ] {
-        if !value.is_object() {
-            return Err(format!("{label}必须是 JSON 对象"));
-        }
-    }
-    request.output_directory = request
-        .output_directory
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty());
-    if request.output_directory.is_none() {
-        request.output_directory = app.path().download_dir().ok().map(|directory| {
-            directory
-                .join("MAD Toolbox")
-                .join("Music")
-                .to_string_lossy()
-                .into_owned()
-        });
-    }
-    if let Some(directory) = &request.output_directory {
-        std::fs::create_dir_all(directory)
-            .map_err(|error| format!("无法创建音乐下载目录：{error}"))?;
-    }
-
-    let (musicdl, _) = resolve_tool(&app, &ToolName::Musicdl)
-        .ok_or_else(|| "未安装 musicdl，请先按照页面提示安装".to_string())?;
-    let python = musicdl_python(&musicdl)?;
-    let adapter = musicdl_adapter(&app)?;
-    let session_id = Uuid::new_v4().to_string();
-    let session_directory = musicdl_sessions_dir(&app)?.join(&session_id);
-    std::fs::create_dir_all(&session_directory).map_err(|error| error.to_string())?;
-    let request_path = session_directory.join("request.json");
-    let state_path = session_directory.join("results.pickle");
-    let bytes = serde_json::to_vec(&request).map_err(|error| error.to_string())?;
-    std::fs::write(&request_path, bytes).map_err(|error| error.to_string())?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&request_path, std::fs::Permissions::from_mode(0o600))
-            .map_err(|error| error.to_string())?;
-    }
-
-    let mut child = background_command(python)
-        .arg(adapter)
-        .arg("search")
-        .arg(&request_path)
-        .arg(&state_path)
-        .env("PATH", command_path())
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .kill_on_drop(true)
-        .spawn()
-        .map_err(|error| format!("无法启动 musicdl 搜索：{error}"))?;
-    let stdout = child.stdout.take();
-    let stderr = child.stderr.take();
-    let (cancel_tx, mut cancel_rx) = oneshot::channel();
-    state
-        .cancel_senders
-        .lock()
-        .map_err(|_| "任务状态锁定失败".to_string())?
-        .insert(session_id.clone(), cancel_tx);
-
-    let source_count = request.music_sources.len();
-    emit_log(
-        &app,
-        &session_id,
-        &ToolName::Musicdl,
-        "system",
-        format!(
-            "$ musicdl GUI 搜索 {:?}（{} 个音乐源）",
-            request.keyword, source_count
-        ),
-    );
-    emit_log(
-        &app,
-        &session_id,
-        &ToolName::Musicdl,
-        "system",
-        "后台搜索已启动；切换菜单不会中断任务。".into(),
-    );
-    let _ = app.emit(
-        "job-state",
-        JobState {
-            job_id: session_id.clone(),
-            tool: ToolName::Musicdl,
-            state: "running",
-            exit_code: None,
-            message: format!("musicdl 正在搜索 {source_count} 个音乐源"),
-        },
-    );
-
-    let task_app = app.clone();
-    let task_job_id = session_id.clone();
-    tauri::async_runtime::spawn(async move {
-        let (payload_tx, payload_rx) = oneshot::channel::<MusicdlAdapterOutput>();
-        let stdout_task = stdout.map(|stdout| {
-            let output_app = task_app.clone();
-            let output_job_id = task_job_id.clone();
-            tauri::async_runtime::spawn(async move {
-                let mut lines = BufReader::new(stdout).lines();
-                let mut payload_tx = Some(payload_tx);
-                while let Ok(Some(line)) = lines.next_line().await {
-                    if let Ok(payload) = serde_json::from_str::<MusicdlAdapterOutput>(&line) {
-                        if let Some(sender) = payload_tx.take() {
-                            let _ = sender.send(payload);
-                        }
-                    } else {
-                        emit_log(
-                            &output_app,
-                            &output_job_id,
-                            &ToolName::Musicdl,
-                            "stdout",
-                            strip_ansi_codes(&line),
-                        );
-                    }
-                }
-            })
-        });
-        let stderr_task = stderr.map(|stderr| {
-            tauri::async_runtime::spawn(stream_output(
-                stderr,
-                task_app.clone(),
-                task_job_id.clone(),
-                ToolName::Musicdl,
-                "stderr",
-            ))
-        });
-
-        let (state_name, exit_code, mut message) = tokio::select! {
-            status = child.wait() => match status {
-                Ok(status) if status.success() => (
-                    "completed",
-                    status.code(),
-                    "musicdl 搜索完成".to_string(),
-                ),
-                Ok(status) => (
-                    "failed",
-                    status.code(),
-                    "musicdl 搜索失败，请查看日志".to_string(),
-                ),
-                Err(error) => (
-                    "failed",
-                    None,
-                    format!("无法等待 musicdl 搜索：{error}"),
-                ),
-            },
-            _ = &mut cancel_rx => {
-                let _ = child.kill().await;
-                ("cancelled", None, "musicdl 搜索已取消".to_string())
-            },
-            _ = sleep(Duration::from_secs(1800)) => {
-                let _ = child.kill().await;
-                (
-                    "failed",
-                    None,
-                    "musicdl 搜索超过 30 分钟，已停止；请减少音乐源或检查网络".to_string(),
-                )
-            },
-        };
-        if let Some(task) = stdout_task {
-            let _ = task.await;
-        }
-        if let Some(task) = stderr_task {
-            let _ = task.await;
-        }
-
-        if state_name == "completed" {
-            match payload_rx.await {
-                Ok(payload) => {
-                    let count = payload.results.len();
-                    let response = MusicdlSearchResponse {
-                        session_id: task_job_id.clone(),
-                        results: payload.results,
-                    };
-                    let _ = task_app.emit("musicdl-search-result", response);
-                    message = format!("musicdl 搜索完成，共 {count} 项结果");
-                }
-                Err(_) => {
-                    message = "无法解析 musicdl 搜索结果，请升级或重新安装 musicdl".into();
-                }
-            }
-        }
-        let final_state = if state_name == "completed" && message.starts_with("无法解析") {
-            "failed"
-        } else {
-            state_name
-        };
-        if let Ok(mut senders) = task_app.state::<AppState>().cancel_senders.lock() {
-            senders.remove(&task_job_id);
-        }
-        emit_log(
-            &task_app,
-            &task_job_id,
-            &ToolName::Musicdl,
-            "system",
-            message.clone(),
-        );
-        let _ = task_app.emit(
-            "job-state",
-            JobState {
-                job_id: task_job_id,
-                tool: ToolName::Musicdl,
-                state: final_state,
-                exit_code,
-                message,
-            },
-        );
-    });
-    Ok(RunResult { job_id: session_id })
-}
-
-#[tauri::command]
-async fn musicdl_download(
-    app: AppHandle,
-    state: State<'_, AppState>,
-    session_id: String,
-    indices: Vec<usize>,
-) -> Result<RunResult, String> {
-    Uuid::parse_str(&session_id).map_err(|_| "无效的 musicdl 搜索会话".to_string())?;
-    if indices.is_empty() {
-        return Err("请至少选择一首音乐".into());
-    }
-    if indices.len() > 1000 {
-        return Err("一次选择的音乐数量超过限制".into());
-    }
-    let (musicdl, _) = resolve_tool(&app, &ToolName::Musicdl)
-        .ok_or_else(|| "未安装 musicdl，请重新检测依赖".to_string())?;
-    let python = musicdl_python(&musicdl)?;
-    let adapter = musicdl_adapter(&app)?;
-    let state_path = musicdl_sessions_dir(&app)?
-        .join(session_id)
-        .join("results.pickle");
-    if !state_path.is_file() {
-        return Err("musicdl 搜索结果已失效，请重新搜索".into());
-    }
-    let selected = serde_json::to_string(&indices).map_err(|error| error.to_string())?;
-    spawn_job(
-        app,
-        state,
-        ToolName::Musicdl,
-        python,
-        vec![
-            adapter.to_string_lossy().into_owned(),
-            "download".into(),
-            state_path.to_string_lossy().into_owned(),
-            selected,
-        ],
-        None,
-        None,
-    )
-    .await
-}
-
-#[tauri::command]
-async fn musicdl_playlist(
-    app: AppHandle,
-    state: State<'_, AppState>,
-    mut request: MusicdlPlaylistRequest,
-) -> Result<RunResult, String> {
-    request.playlist_url = request.playlist_url.trim().to_string();
-    request.music_sources = request
-        .music_sources
-        .into_iter()
-        .map(|source| source.trim().to_string())
-        .filter(|source| !source.is_empty())
-        .collect();
-    if request.playlist_url.is_empty() {
-        return Err("请填写歌单链接".into());
-    }
-    if request.music_sources.is_empty() || request.music_sources.len() > 60 {
-        return Err("请选择 1–60 个音乐源".into());
-    }
-    for (label, value) in [
-        ("客户端设置", &request.init_music_clients_cfg),
-        ("请求设置", &request.requests_overrides),
-        ("线程设置", &request.clients_threadings),
-        ("搜索规则", &request.search_rules),
-    ] {
-        if !value.is_object() {
-            return Err(format!("{label}必须是 JSON 对象"));
-        }
-    }
-    request.output_directory = request
-        .output_directory
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .or_else(|| {
-            app.path().download_dir().ok().map(|directory| {
-                directory
-                    .join("MAD Toolbox")
-                    .join("Music")
-                    .to_string_lossy()
-                    .into_owned()
-            })
-        });
-    let output_directory = request
-        .output_directory
-        .as_ref()
-        .ok_or_else(|| "无法确定音乐导出目录".to_string())?;
-    std::fs::create_dir_all(output_directory)
-        .map_err(|error| format!("无法创建音乐导出目录：{error}"))?;
-
-    let (musicdl, _) = resolve_tool(&app, &ToolName::Musicdl)
-        .ok_or_else(|| "未安装 musicdl，请重新检测依赖".to_string())?;
-    let python = musicdl_python(&musicdl)?;
-    let adapter = musicdl_adapter(&app)?;
-    let session_directory = musicdl_sessions_dir(&app)?.join(Uuid::new_v4().to_string());
-    std::fs::create_dir_all(&session_directory).map_err(|error| error.to_string())?;
-    let request_path = session_directory.join("playlist-request.json");
-    std::fs::write(
-        &request_path,
-        serde_json::to_vec(&request).map_err(|error| error.to_string())?,
-    )
-    .map_err(|error| error.to_string())?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&request_path, std::fs::Permissions::from_mode(0o600))
-            .map_err(|error| error.to_string())?;
-    }
-    spawn_job(
-        app,
-        state,
-        ToolName::Musicdl,
-        python,
-        vec![
-            adapter.to_string_lossy().into_owned(),
-            "playlist".into(),
-            request_path.to_string_lossy().into_owned(),
-        ],
-        None,
-        None,
-    )
-    .await
-}
-
-#[tauri::command]
-fn cancel_job(state: State<'_, AppState>, job_id: String) -> Result<(), String> {
-    let sender = state
-        .cancel_senders
-        .lock()
-        .map_err(|_| "任务状态锁定失败".to_string())?
-        .remove(&job_id)
-        .ok_or_else(|| "任务已经结束或不存在".to_string())?;
-    sender.send(()).map_err(|_| "无法取消任务".to_string())
-}
-
-#[tauri::command]
-async fn check_youtube_access(proxy: Option<String>) -> Result<bool, String> {
-    let curl = find_system_binary("curl").unwrap_or_else(|| {
-        PathBuf::from(if cfg!(target_os = "windows") {
-            "curl.exe"
-        } else {
-            "curl"
-        })
-    });
-    let mut command = background_command(curl);
-    command.args([
-        "--location",
-        "--silent",
-        "--show-error",
-        "--output",
-        if cfg!(target_os = "windows") {
-            "NUL"
-        } else {
-            "/dev/null"
-        },
-        "--max-time",
-        "6",
-        "--write-out",
-        "%{http_code}",
-    ]);
-    if let Some(value) = proxy.filter(|value| !value.trim().is_empty()) {
-        command.arg("--proxy").arg(value);
-    }
-    command.arg("https://www.youtube.com/generate_204");
-    command.env("PATH", command_path()).kill_on_drop(true);
-    let output = timeout(Duration::from_secs(8), command.output())
-        .await
-        .map_err(|_| "YouTube 网络检测超时".to_string())?
-        .map_err(|error| error.to_string())?;
-    let code = String::from_utf8_lossy(&output.stdout);
-    Ok(output.status.success() && (code.trim() == "204" || code.trim() == "200"))
 }
 
 fn media_info_value<'a>(track: &'a serde_json::Value, key: &str) -> Option<&'a str> {
@@ -2721,7 +1241,7 @@ async fn inspect_media(app: AppHandle, path: String) -> Result<MediaInspection, 
     Ok(MediaInspection { path, summary })
 }
 
-fn media_files_in(directory: &Path) -> Result<Vec<PathBuf>, String> {
+pub(crate) fn media_files_in(directory: &Path) -> Result<Vec<PathBuf>, String> {
     const EXTENSIONS: &[&str] = &[
         // Video containers and elementary streams commonly handled by FFmpeg.
         "mp4", "mkv", "mov", "avi", "webm", "flv", "f4v", "m4v", "3gp", "3g2", "asf", "wmv", "vob",
@@ -2782,7 +1302,6 @@ fn is_text_subtitle_file(path: &Path) -> bool {
         })
 }
 
-#[tauri::command]
 fn expand_media_inputs(
     paths: Vec<String>,
     include_subtitles: Option<bool>,
@@ -2814,7 +1333,7 @@ fn expand_media_inputs(
     Ok(output)
 }
 
-async fn probe_streams(
+pub(crate) async fn probe_streams(
     ffprobe: &Path,
     input: &Path,
 ) -> Result<(Vec<String>, Vec<String>, Vec<String>), String> {
@@ -2868,13 +1387,11 @@ fn streams_from_probe(value: &serde_json::Value) -> (Vec<String>, Vec<String>, V
     (video, audio, subtitles)
 }
 
-#[cfg(test)]
-fn codecs_from_probe(value: &serde_json::Value) -> (Vec<String>, Vec<String>) {
-    let (video, audio, _) = streams_from_probe(value);
-    (video, audio)
-}
-
-fn pr_output_path(input: &Path, output_directory: Option<&str>, extension: &str) -> PathBuf {
+pub(crate) fn pr_output_path(
+    input: &Path,
+    output_directory: Option<&str>,
+    extension: &str,
+) -> PathBuf {
     let directory = output_directory
         .filter(|value| !value.trim().is_empty())
         .map(PathBuf::from)
@@ -2887,7 +1404,7 @@ fn pr_output_path(input: &Path, output_directory: Option<&str>, extension: &str)
     directory.join(format!("{stem}.pr.{extension}"))
 }
 
-fn pr_container(video: &[String], audio_only: bool) -> &'static str {
+pub(crate) fn pr_container(video: &[String], audio_only: bool) -> &'static str {
     if audio_only {
         "wav"
     } else if !video.is_empty()
@@ -2901,7 +1418,7 @@ fn pr_container(video: &[String], audio_only: bool) -> &'static str {
     }
 }
 
-fn is_lossless_audio(audio: &[String]) -> bool {
+pub(crate) fn is_lossless_audio(audio: &[String]) -> bool {
     !audio.is_empty()
         && audio.iter().all(|codec| {
             codec.starts_with("pcm_")
@@ -2922,7 +1439,7 @@ fn is_lossless_audio(audio: &[String]) -> bool {
         })
 }
 
-fn pr_audio_container(audio: &[String]) -> &'static str {
+pub(crate) fn pr_audio_container(audio: &[String]) -> &'static str {
     if is_lossless_audio(audio) {
         "wav"
     } else if !audio.is_empty() && audio.iter().all(|codec| codec == "mp3") {
@@ -2932,421 +1449,185 @@ fn pr_audio_container(audio: &[String]) -> &'static str {
     }
 }
 
+// ---- 任务系统通用 command（core/task 的前端入口，feature 无关） ----
+
 #[tauri::command]
-async fn run_pr_compatible(
+fn task_cancel(hub: State<'_, crate::core::task::TaskHub>, task_id: String) {
+    hub.cancel(&task_id);
+}
+
+#[tauri::command]
+fn task_promote(hub: State<'_, crate::core::task::TaskHub>, task_id: String) {
+    hub.promote(&task_id);
+}
+
+#[tauri::command]
+async fn tasks_snapshot(
+    hub: State<'_, crate::core::task::TaskHub>,
+) -> Result<Vec<crate::core::task::types::TaskEnvelope>, String> {
+    Ok(hub.snapshot().await)
+}
+
+/// 任务诊断导出（基于新任务系统重建）：信封 + 日志文件 → 单个脱敏文本文件。
+/// 信封与日志在记录时已过凭据脱敏；此处再叠加个人信息脱敏（家目录、URL 等）。
+#[tauri::command]
+async fn task_export_diagnostics(
     app: AppHandle,
-    state: State<'_, AppState>,
-    input: String,
-    output_directory: Option<String>,
-) -> Result<Vec<RunResult>, String> {
-    let (ffmpeg, _) =
-        resolve_tool(&app, &ToolName::Ffmpeg).ok_or_else(|| "未找到 FFmpeg".to_string())?;
-    let (ffprobe, _) =
-        resolve_tool(&app, &ToolName::Ffprobe).ok_or_else(|| "未找到 ffprobe".to_string())?;
-    let input_path = PathBuf::from(input);
-    let inputs = if input_path.is_dir() {
-        media_files_in(&input_path)?
-    } else if input_path.is_file() {
-        vec![input_path]
+    hub: State<'_, crate::core::task::TaskHub>,
+    task_id: String,
+    target_path: String,
+) -> Result<String, String> {
+    let output = PathBuf::from(target_path.trim());
+    let parent = output
+        .parent()
+        .filter(|path| path.is_dir())
+        .ok_or_else(|| "导出目录不存在".to_string())?;
+    let envelope = hub
+        .snapshot()
+        .await
+        .into_iter()
+        .find(|e| e.id == task_id)
+        .ok_or_else(|| "任务不存在或已被保留策略清理".to_string())?;
+
+    let home = env::var(if cfg!(target_os = "windows") {
+        "USERPROFILE"
     } else {
-        return Err("输入文件或目录不存在".into());
+        "HOME"
+    })
+    .ok();
+    let sanitize = |value: &str| sanitize_diagnostic_text(value, true, home.as_deref());
+    let (os_version, os_build, cpu, memory) = platform_system_info();
+    let status = serde_json::to_value(envelope.status)
+        .ok()
+        .and_then(|v| v.as_str().map(str::to_owned))
+        .unwrap_or_default();
+    let time = |value: &Option<chrono::DateTime<chrono::Utc>>| {
+        value.map(|t| t.to_rfc3339()).unwrap_or_else(|| "—".into())
     };
-    let mut jobs = Vec::new();
-    for path in inputs {
-        let (video, audio, subtitles) = probe_streams(&ffprobe, &path).await?;
-        let audio_only = video.is_empty() && !audio.is_empty();
-        let subtitle_only = video.is_empty() && audio.is_empty() && !subtitles.is_empty();
-        if video.is_empty() && audio.is_empty() && subtitles.is_empty() {
-            return Err(format!(
-                "文件中没有可转换的媒体流：{}",
-                path.to_string_lossy()
-            ));
-        }
-        if subtitle_only
-            && subtitles.iter().any(|codec| {
-                ["hdmv_pgs_subtitle", "dvd_subtitle", "dvb_subtitle", "xsub"]
-                    .contains(&codec.as_str())
-            })
-        {
-            return Err(format!(
-                "{} 是图片字幕，需要 OCR 后才能转为 SRT",
-                path.to_string_lossy()
-            ));
-        }
-        let lossless_audio = audio_only && is_lossless_audio(&audio);
-        let mov_video_copy = video.iter().all(|codec| {
-            ["h264", "hevc", "prores", "dnxhd", "dvvideo", "mpeg2video"].contains(&codec.as_str())
-        });
-        let mov_audio_copy = audio.iter().all(|codec| {
-            [
-                "aac",
-                "mp3",
-                "pcm_s16le",
-                "pcm_s24le",
-                "pcm_s32le",
-                "pcm_f32le",
-            ]
-            .contains(&codec.as_str())
-        });
-        let mp4_audio_copy = audio
-            .iter()
-            .all(|codec| ["aac", "mp3"].contains(&codec.as_str()));
-        let container = if subtitle_only {
-            "srt"
-        } else if audio_only {
-            pr_audio_container(&audio)
+
+    let mut text = format!(
+        "MAD Toolbox 任务诊断\n\n\
+         创建时间：{}\n应用版本：{}\n系统：{} {} ({}) / {}\nCPU：{}\n内存：{}\n\n\
+         任务 ID：{}\n标题：{}\n状态：{}\n工具：{} {}\n退出码：{}\n\
+         创建：{}\n开始：{}\n结束：{}\n工作目录：{}\n命令（脱敏）：{}\n输出文件：{}\n\n\
+         说明：本文件由 MAD Toolbox 在本机生成，不会自动上传。Cookie、Token、密码等凭据在记录时\n\
+         即被隐藏；脱敏为尽力而为，提交给开发者前请自行检查内容。\n\n\
+         ===== 任务日志 =====\n",
+        Local::now().to_rfc3339(),
+        app.package_info().version,
+        env::consts::OS,
+        os_version,
+        os_build,
+        format!("{} · {} · {}", env::consts::ARCH, cpu, memory),
+        cpu,
+        memory,
+        envelope.id,
+        sanitize(&envelope.title),
+        status,
+        envelope.tool,
+        envelope.tool_version.as_deref().unwrap_or(""),
+        envelope
+            .exit_code
+            .map(|c| c.to_string())
+            .unwrap_or_else(|| "无".into()),
+        envelope.created_at.to_rfc3339(),
+        time(&envelope.started_at),
+        time(&envelope.finished_at),
+        envelope
+            .working_dir
+            .as_deref()
+            .map(&sanitize)
+            .unwrap_or_else(|| "—".into()),
+        sanitize(&envelope.argv_redacted.join(" ")),
+        if envelope.output_paths.is_empty() {
+            "—".into()
         } else {
-            pr_container(&video, false)
-        };
-        let output = pr_output_path(&path, output_directory.as_deref(), container);
-        if let Some(parent) = output.parent() {
-            std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
-        }
-        let mut args = vec![
-            "-n".into(),
-            "-i".into(),
-            path.to_string_lossy().into_owned(),
-        ];
-        if subtitle_only {
-            args.extend(["-map".into(), "0:s:0".into(), "-c:s".into(), "srt".into()]);
-        } else if audio_only {
-            args.extend(["-map".into(), "0:a".into(), "-vn".into()]);
-            if lossless_audio {
-                args.extend(["-c:a".into(), "pcm_s24le".into()]);
-            } else if container == "mp3" || audio.iter().all(|codec| codec == "aac") {
-                args.extend(["-c:a".into(), "copy".into()]);
-            } else {
-                args.extend(["-c:a".into(), "aac".into(), "-b:a".into(), "320k".into()]);
+            sanitize(&envelope.output_paths.join("; "))
+        },
+    );
+    match envelope.log_path.as_deref().map(std::fs::read_to_string) {
+        Some(Ok(content)) => {
+            for line in content.lines() {
+                text.push_str(&sanitize(line));
+                text.push('\n');
             }
-        } else {
-            args.extend([
-                "-map".into(),
-                "0:V:0?".into(),
-                "-map".into(),
-                "0:a?".into(),
-                "-map_metadata".into(),
-                "0".into(),
-                "-map_chapters".into(),
-                "0".into(),
-            ]);
         }
-        if !audio_only && !subtitle_only && container == "mp4" {
-            args.extend(["-c:v".into(), "copy".into()]);
-            if mp4_audio_copy {
-                args.extend(["-c:a".into(), "copy".into()]);
-            } else {
-                args.extend(["-c:a".into(), "aac".into(), "-b:a".into(), "320k".into()]);
-            }
-            if video.iter().any(|codec| codec == "hevc") {
-                args.extend(["-tag:v".into(), "hvc1".into()]);
-            }
-            args.extend(["-movflags".into(), "+faststart".into()]);
-        } else if !audio_only && !subtitle_only && mov_video_copy {
-            args.extend(["-c:v".into(), "copy".into()]);
-            args.extend([
-                "-c:a".into(),
-                if mov_audio_copy { "copy" } else { "pcm_s24le" }.into(),
-            ]);
-        } else if !audio_only && !subtitle_only {
-            args.extend([
-                "-c:v".into(),
-                "prores_ks".into(),
-                "-profile:v".into(),
-                "2".into(),
-                "-pix_fmt".into(),
-                "yuv422p10le".into(),
-                "-c:a".into(),
-                "pcm_s24le".into(),
-            ]);
+        Some(Err(error)) => {
+            let _ = write!(text, "（日志文件读取失败：{error}）\n");
         }
-        args.push(output.to_string_lossy().into_owned());
-        jobs.push(
-            spawn_job(
-                app.clone(),
-                state.clone(),
-                ToolName::Ffmpeg,
-                ffmpeg.clone(),
-                args,
-                None,
-                None,
-            )
-            .await?,
-        );
+        None => text.push_str("（该任务没有日志文件）\n"),
     }
-    Ok(jobs)
+
+    let temporary = parent.join(format!(".mad-toolbox-diag-{}.tmp", Uuid::new_v4()));
+    std::fs::write(&temporary, text).map_err(|error| format!("无法写入诊断文件：{error}"))?;
+    if output.is_file() {
+        std::fs::remove_file(&output).map_err(|error| format!("无法覆盖诊断文件：{error}"))?;
+    }
+    std::fs::rename(&temporary, &output).map_err(|error| format!("无法保存诊断文件：{error}"))?;
+    Ok(output.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+fn pool_definitions(
+    caps: State<'_, crate::core::task::scheduler::PoolCaps>,
+) -> Vec<crate::core::task::scheduler::PoolDefinition> {
+    crate::core::task::scheduler::definitions(*caps.inner())
 }
 
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .manage(AppState::default())
+        .setup(|app| {
+            // 任务枢纽：库文件与日志目录在应用数据目录；启动时先做保留清理，
+            // TaskHub::new 内部随后执行遗留任务对账（§4.3/§4.5）
+            let handle = app.handle().clone();
+            let data_dir = app_data_dir(&handle).map_err(std::io::Error::other)?;
+            let store = crate::core::task::store::TaskStore::open(&data_dir.join("tasks.db"))?;
+            let _ = crate::core::task::logfile::cleanup_expired(
+                &store,
+                chrono::Utc::now(),
+                crate::core::task::logfile::default_retention(),
+            );
+            let caps = crate::core::task::scheduler::PoolCaps {
+                download: 3,
+                local: std::thread::available_parallelism()
+                    .map(|n| n.get())
+                    .unwrap_or(4),
+            };
+            let sink = std::sync::Arc::new(crate::core::task::sink::TauriSink::new(handle));
+            let logs_dir = data_dir.join("logs");
+            let hub = tauri::async_runtime::block_on(async move {
+                crate::core::task::TaskHub::new(store, sink, caps, logs_dir)
+            });
+            app.manage(hub);
+            app.manage(caps);
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             app_settings,
             save_app_settings,
             dependency_status,
-            export_job_log,
-            export_job_diagnostics,
+            task_export_diagnostics,
             ffmpeg_encoders,
-            run_tool,
-            musicdl_search,
-            musicdl_download,
-            musicdl_playlist,
-            cancel_job,
-            check_youtube_access,
+            features::music::commands::musicdl_search,
+            features::music::commands::musicdl_download,
+            features::music::commands::musicdl_playlist,
             inspect_media,
-            expand_media_inputs,
-            run_pr_compatible
+            task_cancel,
+            task_promote,
+            tasks_snapshot,
+            pool_definitions,
+            features::bilibili::commands::bilibili_submit,
+            features::bilibili::commands::bilibili_preview,
+            features::bilibili::commands::bilibili_login_start,
+            features::network::commands::network_submit,
+            features::network::commands::network_preview,
+            features::network::commands::network_probe,
+            features::media::commands::media_submit,
+            features::media::commands::media_preview,
+            features::media::commands::media_pr_submit
         ])
         .run(tauri::generate_context!())
         .expect("error while running MAD Toolbox");
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{
-        bbdown_qr_data_url, codecs_from_probe, cookie_header, has_required_bbdown_cookie,
-        is_text_subtitle_file, media_info_summary, musicdl_launcher_python, parse_query_fields,
-        poll_bbdown_qr_at, pr_audio_container, pr_container, redact_output_line,
-        sanitize_diagnostic_text, streams_from_probe, strip_ansi_codes,
-        yt_dlp_browser_cookie_fallback_requested,
-    };
-    use serde_json::json;
-    use std::{
-        io::{Read, Write},
-        net::TcpListener,
-        path::Path,
-        thread,
-    };
-
-    #[test]
-    fn redacts_bilibili_credentials_from_process_output() {
-        let output =
-            redact_output_line("SESSDATA=secret; bili_jct=csrf access_token=another-secret");
-        assert_eq!(output, "SESSDATA=***; bili_jct=*** access_token=***");
-        assert!(!output.contains("secret"));
-    }
-
-    #[test]
-    fn recognizes_ticket_only_and_complete_bbdown_data() {
-        let ticket = parse_query_fields(
-            "ticket=dummy;gourl=https%3A%2F%2Fwww.bilibili.com;first_domain=.bilibili.com",
-            ';',
-        );
-        assert!(!has_required_bbdown_cookie(&ticket));
-        let complete = parse_query_fields(
-            "SESSDATA=session;bili_jct=csrf;DedeUserID=123;DedeUserID__ckMd5=hash;sid=sid",
-            ';',
-        );
-        assert!(has_required_bbdown_cookie(&complete));
-        assert_eq!(
-            cookie_header(&complete),
-            "SESSDATA=session;bili_jct=csrf;DedeUserID=123;DedeUserID__ckMd5=hash;sid=sid"
-        );
-        let comma = parse_query_fields("SESSDATA=session,part;bili_jct=csrf;DedeUserID=123", ';');
-        assert_eq!(
-            cookie_header(&comma),
-            "SESSDATA=session%2Cpart;bili_jct=csrf;DedeUserID=123"
-        );
-    }
-
-    #[tokio::test]
-    async fn reads_complete_cookie_fields_from_qr_poll_set_cookie_headers() {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let address = listener.local_addr().unwrap();
-        let server = thread::spawn(move || {
-            let (mut stream, _) = listener.accept().unwrap();
-            let mut request = [0_u8; 8192];
-            let length = stream.read(&mut request).unwrap();
-            let request = String::from_utf8_lossy(&request[..length]);
-            assert!(request.starts_with("GET /poll?qrcode_key=test-key&source=main-fe-header"));
-            let body = r#"{"code":0,"data":{"code":0,"url":"https://passport.biligame.com/crossDomain?ticket=legacy-ticket"}}"#;
-            let response = format!(
-                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nSet-Cookie: SESSDATA=session-value; Path=/; HttpOnly\r\nSet-Cookie: bili_jct=csrf-value; Path=/\r\nSet-Cookie: DedeUserID=123; Path=/\r\nSet-Cookie: DedeUserID__ckMd5=hash-value; Path=/\r\nSet-Cookie: sid=sid-value; Path=/\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-                body.len(),
-                body
-            );
-            stream.write_all(response.as_bytes()).unwrap();
-        });
-
-        let client = reqwest::Client::builder().build().unwrap();
-        let (status, cookies, url) =
-            poll_bbdown_qr_at(&client, &format!("http://{address}/poll"), "test-key")
-                .await
-                .unwrap();
-        server.join().unwrap();
-        assert_eq!(status, 0);
-        assert!(has_required_bbdown_cookie(&cookies));
-        assert_eq!(cookies.get("SESSDATA"), Some(&"session-value".to_string()));
-        assert_eq!(cookies.get("bili_jct"), Some(&"csrf-value".to_string()));
-        assert_eq!(cookies.get("DedeUserID"), Some(&"123".to_string()));
-        assert_eq!(
-            url.as_deref(),
-            Some("https://passport.biligame.com/crossDomain?ticket=legacy-ticket")
-        );
-    }
-
-    #[test]
-    fn renders_bilibili_login_qr_as_data_url() {
-        let data_url = bbdown_qr_data_url("https://passport.bilibili.com/qr/test").unwrap();
-        assert!(data_url.starts_with("data:image/svg+xml;base64,"));
-        assert!(data_url.len() > 500);
-    }
-
-    #[test]
-    fn redacts_generic_json_and_header_credentials() {
-        assert_eq!(
-            redact_output_line(r#"request {"cookie":"private-cookie","password":"private-pass"}"#),
-            r#"request {"cookie":"***","password":"***"}"#
-        );
-        assert_eq!(
-            redact_output_line("Authorization: Bearer private-token"),
-            "Authorization: ***"
-        );
-    }
-
-    #[test]
-    fn diagnostic_redaction_hides_home_urls_and_credentials() {
-        let output = sanitize_diagnostic_text(
-            "打开 /Users/demo/Videos/a.mp4 https://example.com/watch?v=1 SESSDATA=secret",
-            true,
-            Some("/Users/demo"),
-        );
-        assert_eq!(
-            output,
-            "打开 $HOME/Videos/a.mp4 <URL_REDACTED> SESSDATA=***"
-        );
-    }
-
-    #[test]
-    fn media_info_json_keeps_chinese_text_and_uses_localized_labels() {
-        let document = json!({
-            "media": {
-                "track": [
-                    {
-                        "@type": "General",
-                        "Format": "MPEG-4",
-                        "Duration": "61.2",
-                        "Title": "中文标题"
-                    },
-                    {
-                        "@type": "Video",
-                        "Format": "HEVC",
-                        "Width": "1920",
-                        "Height": "1080",
-                        "FrameRate": "30.000"
-                    }
-                ]
-            }
-        });
-        let summary = media_info_summary(&document, "/用户/视频/示例.mp4").unwrap();
-        assert!(summary.contains("路径：/用户/视频/示例.mp4"));
-        assert!(summary.contains("标题：中文标题"));
-        assert!(summary.contains("视频轨道 1"));
-        assert!(summary.contains("分辨率：1920 × 1080"));
-    }
-
-    #[test]
-    fn finds_python_inside_pipx_polyglot_launcher() {
-        let launcher = "#!/bin/sh\n'''exec' \"/Users/demo/pipx/venvs/musicdl/bin/python\" \"$0\" \"$@\"\n' '''\nimport sys\n";
-        assert_eq!(
-            musicdl_launcher_python(launcher),
-            Some(Path::new("/Users/demo/pipx/venvs/musicdl/bin/python").to_path_buf())
-        );
-        assert_eq!(
-            musicdl_launcher_python("#!/usr/bin/env python3\nimport sys\n"),
-            Some(Path::new("python3").to_path_buf())
-        );
-    }
-
-    #[test]
-    fn removes_terminal_colors_before_gui_logging() {
-        assert_eq!(
-            strip_ansi_codes("Searching \u{1b}[93m稻香\u{1b}[0m From Migu"),
-            "Searching 稻香 From Migu"
-        );
-    }
-
-    #[test]
-    fn recognizes_yt_dlp_browser_cookie_fallback_errors() {
-        assert!(yt_dlp_browser_cookie_fallback_requested(
-            "ERROR: Sign in to confirm you're not a bot."
-        ));
-        assert!(yt_dlp_browser_cookie_fallback_requested(
-            "Use --cookies-from-browser or --cookies for the authentication."
-        ));
-        assert!(yt_dlp_browser_cookie_fallback_requested(
-            "Please sign in to confirm you’re not a bot."
-        ));
-        assert!(!yt_dlp_browser_cookie_fallback_requested(
-            "ERROR: Unable to download webpage: network timeout"
-        ));
-    }
-
-    #[test]
-    fn pr_workflow_prefers_mp4_for_h264_and_hevc() {
-        assert_eq!(pr_container(&["h264".into()], false), "mp4");
-        assert_eq!(pr_container(&["hevc".into()], false), "mp4");
-        assert_eq!(pr_container(&["prores".into()], false), "mov");
-        assert_eq!(pr_container(&[], true), "wav");
-    }
-
-    #[test]
-    fn pr_workflow_selects_native_audio_outputs() {
-        assert_eq!(pr_audio_container(&["flac".into()]), "wav");
-        assert_eq!(pr_audio_container(&["pcm_s24le".into()]), "wav");
-        assert_eq!(pr_audio_container(&["mp3".into()]), "mp3");
-        assert_eq!(pr_audio_container(&["opus".into()]), "m4a");
-    }
-
-    #[test]
-    fn pr_workflow_ignores_attached_cover_art() {
-        let probe = json!({
-            "streams": [
-                {
-                    "codec_name": "hevc",
-                    "codec_type": "video",
-                    "disposition": { "attached_pic": 0 }
-                },
-                {
-                    "codec_name": "aac",
-                    "codec_type": "audio",
-                    "disposition": { "attached_pic": 0 }
-                },
-                {
-                    "codec_name": "mjpeg",
-                    "codec_type": "video",
-                    "disposition": { "attached_pic": 1 }
-                }
-            ]
-        });
-        let (video, audio) = codecs_from_probe(&probe);
-        assert_eq!(video, vec!["hevc"]);
-        assert_eq!(audio, vec!["aac"]);
-        assert_eq!(pr_container(&video, false), "mp4");
-    }
-
-    #[test]
-    fn recognizes_text_subtitle_inputs_without_case_sensitivity() {
-        assert!(is_text_subtitle_file(Path::new("subtitle.srt")));
-        assert!(is_text_subtitle_file(Path::new("subtitle.ASS")));
-        assert!(is_text_subtitle_file(Path::new("subtitle.vtt")));
-        assert!(is_text_subtitle_file(Path::new("subtitle.sub")));
-        assert!(!is_text_subtitle_file(Path::new("video.mp4")));
-    }
-
-    #[test]
-    fn pr_workflow_detects_standalone_subtitle_streams() {
-        let probe = json!({
-            "streams": [{
-                "codec_name": "webvtt",
-                "codec_type": "subtitle",
-                "disposition": { "attached_pic": 0 }
-            }]
-        });
-        let (video, audio, subtitles) = streams_from_probe(&probe);
-        assert!(video.is_empty());
-        assert!(audio.is_empty());
-        assert_eq!(subtitles, vec!["webvtt"]);
-    }
 }

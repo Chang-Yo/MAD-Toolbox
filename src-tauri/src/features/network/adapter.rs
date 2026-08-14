@@ -1,0 +1,311 @@
+//! network（yt-dlp）adapter：意图 → argv 纯函数，移植自旧前端 buildYtDlpArgs。
+//! 也是"工具特有失败兜底归 adapter"（§2）的落点：
+//! 主跑不带浏览器 Cookie；输出命中"需登录"特征且用户选了浏览器时，
+//! 由失败顾问给出带 `--cookies-from-browser` 的重试计划，枢纽在同一任务内重试一次。
+
+use super::registry;
+use super::types::{NetworkIntent, NetworkMode};
+use crate::core::adapter::AdapterPlan;
+use crate::core::task::types::{CwdPolicy, Pool, TaskIntent};
+use crate::core::task::RetryPlan;
+
+/// commands.rs 解析好的运行时上下文（工具路径解析不属于纯函数翻译）。
+#[derive(Debug, Clone, Default)]
+pub struct NetworkCtx {
+    /// deno 可执行文件路径（yt-dlp 的 --js-runtimes 注入，破解 YouTube 混淆脚本用）。
+    pub deno_path: Option<String>,
+    /// ffmpeg 位置（yt-dlp 合流需要；旧后端 run_tool 的注入逻辑归位至此）。
+    pub ffmpeg_location: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum AdapterError {
+    MissingUrl,
+    InvalidIntent(String),
+    EmptyArgv,
+}
+
+impl std::fmt::Display for AdapterError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AdapterError::MissingUrl => write!(f, "请填写视频地址"),
+            AdapterError::InvalidIntent(e) => write!(f, "表单数据无效: {e}"),
+            AdapterError::EmptyArgv => write!(f, "命令不能为空"),
+        }
+    }
+}
+
+pub fn plan(intent: &TaskIntent, ctx: &NetworkCtx) -> Result<AdapterPlan, AdapterError> {
+    match intent {
+        TaskIntent::Form(data) => {
+            let form: NetworkIntent = serde_json::from_value(data.clone())
+                .map_err(|e| AdapterError::InvalidIntent(e.to_string()))?;
+            plan_form(&form, ctx)
+        }
+        TaskIntent::Manual { argv } => plan_manual(argv, ctx),
+    }
+}
+
+fn plan_form(intent: &NetworkIntent, ctx: &NetworkCtx) -> Result<AdapterPlan, AdapterError> {
+    let url = intent.url.trim();
+    if url.is_empty() {
+        return Err(AdapterError::MissingUrl);
+    }
+    let argv = build_argv(intent, ctx, false);
+    let argv_redacted = redact_argv(&argv);
+    Ok(AdapterPlan {
+        tool: "yt-dlp",
+        argv,
+        argv_redacted,
+        title: title_for(intent.mode, url),
+        pool: Pool::Download,
+        cwd: CwdPolicy::Inherit,
+    })
+}
+
+fn plan_manual(argv: &[String], ctx: &NetworkCtx) -> Result<AdapterPlan, AdapterError> {
+    if argv.iter().all(|a| a.trim().is_empty()) {
+        return Err(AdapterError::EmptyArgv);
+    }
+    let mut argv = argv.to_vec();
+    append_ffmpeg_location(&mut argv, ctx);
+    let argv_redacted = redact_argv(&argv);
+    Ok(AdapterPlan {
+        tool: "yt-dlp",
+        title: format!(
+            "yt-dlp 手动命令 {}",
+            argv.first().map(String::as_str).unwrap_or("")
+        ),
+        argv,
+        argv_redacted,
+        pool: Pool::Download,
+        cwd: CwdPolicy::Inherit,
+    })
+}
+
+/// 失败兜底的重试计划（§2）：用户选了浏览器才有兜底；重试 argv = 主 argv + 浏览器 Cookie。
+pub fn retry_plan(intent: &TaskIntent, ctx: &NetworkCtx) -> Option<RetryPlan> {
+    let TaskIntent::Form(data) = intent else {
+        return None;
+    };
+    let form: NetworkIntent = serde_json::from_value(data.clone()).ok()?;
+    let browser = form.cookies_browser.trim();
+    if browser.is_empty() || form.url.trim().is_empty() {
+        return None;
+    }
+    let argv = build_argv(&form, ctx, true);
+    let argv_redacted = redact_argv(&argv);
+    Some(RetryPlan {
+        argv,
+        argv_redacted,
+        note: format!("检测到站点要求登录，使用浏览器 Cookie（{browser}）重试"),
+    })
+}
+
+/// yt-dlp 输出中"需要登录/机器人检查"的特征行（自 lib.rs 回迁的 yt-dlp 专属知识）。
+pub(crate) fn browser_cookie_fallback_requested(line: &str) -> bool {
+    let normalized = line.to_ascii_lowercase().replace('’', "'");
+    [
+        "sign in to confirm",
+        "confirm you're not a bot",
+        "use --cookies-from-browser",
+        "use --cookies",
+    ]
+    .iter()
+    .any(|marker| normalized.contains(marker))
+}
+
+/// 供 TaskSpec 的解析器：命中特征行时发射 "needs-browser-cookies" 信号，失败顾问据此决定重试。
+pub const NEEDS_BROWSER_COOKIES_SIGNAL: &str = "needs-browser-cookies";
+
+fn build_argv(
+    intent: &NetworkIntent,
+    ctx: &NetworkCtx,
+    include_browser_cookies: bool,
+) -> Vec<String> {
+    let mut argv: Vec<String> = Vec::new();
+    if let Some(deno) = ctx.deno_path.as_deref().filter(|p| !p.is_empty()) {
+        argv.push("--js-runtimes".into());
+        argv.push(format!("deno:{deno}"));
+    }
+    let mut push_value = |flag: &str, value: &str| {
+        let value = value.trim();
+        if !value.is_empty() {
+            argv.push(flag.into());
+            argv.push(value.into());
+        }
+    };
+    push_value("--proxy", &intent.proxy);
+    push_value("-P", &intent.output_directory);
+    push_value("-o", &intent.output_template);
+    push_value("-f", &intent.format);
+    if include_browser_cookies {
+        push_value("--cookies-from-browser", &intent.cookies_browser);
+    }
+    push_value("-I", &intent.playlist_items);
+
+    argv.push("--retries".into());
+    argv.push(intent.retries.to_string());
+    argv.push("--concurrent-fragments".into());
+    argv.push(intent.concurrent_fragments.to_string());
+
+    let switches: [(bool, &str); 6] = [
+        (intent.no_playlist, "--no-playlist"),
+        (intent.embed_metadata, "--embed-metadata"),
+        (intent.embed_thumbnail, "--embed-thumbnail"),
+        (intent.embed_subtitles, "--embed-subs"),
+        (intent.write_info_json, "--write-info-json"),
+        (intent.verbose, "--verbose"),
+    ];
+    for (on, flag) in switches {
+        if on {
+            argv.push(flag.into());
+        }
+    }
+
+    match intent.mode {
+        NetworkMode::Video => {}
+        NetworkMode::Audio => {
+            argv.push("-x".into());
+            argv.push("--audio-format".into());
+            let format = intent.audio_format.trim();
+            argv.push(if format.is_empty() {
+                "best".into()
+            } else {
+                format.to_string()
+            });
+        }
+        NetworkMode::Thumbnail => {
+            argv.push("--skip-download".into());
+            argv.push("--write-thumbnail".into());
+        }
+        NetworkMode::Subtitles => {
+            argv.push("--skip-download".into());
+            argv.push("--write-subs".into());
+            let langs = intent.subtitle_languages.trim();
+            if !langs.is_empty() {
+                argv.push("--sub-langs".into());
+                argv.push(langs.into());
+            }
+        }
+    }
+
+    argv.push(intent.url.trim().to_string());
+    append_ffmpeg_location(&mut argv, ctx);
+    argv
+}
+
+/// 旧 run_tool 的 --ffmpeg-location 注入归位：已含该 flag 则不重复（专家模式可能手写了）。
+fn append_ffmpeg_location(argv: &mut Vec<String>, ctx: &NetworkCtx) {
+    let Some(location) = ctx.ffmpeg_location.as_deref().filter(|p| !p.is_empty()) else {
+        return;
+    };
+    let already = argv
+        .iter()
+        .any(|a| a == "--ffmpeg-location" || a.starts_with("--ffmpeg-location="));
+    if !already {
+        argv.push("--ffmpeg-location".into());
+        argv.push(location.into());
+    }
+}
+
+/// 查询种类（§4.1）：formats / metadata 是查询不是作业——结果由页面即时消费、不产出文件。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ProbeKind {
+    Formats,
+    Metadata,
+}
+
+/// 查询 argv：复用表单翻译，剥离下载模式 flag，追加查询 flag。
+/// 用户选了浏览器则直接携带 Cookie（查询短平快，不做失败重试仪式）；不注入 ffmpeg（无合流）。
+pub fn probe_argv(
+    intent: &TaskIntent,
+    ctx: &NetworkCtx,
+    kind: ProbeKind,
+) -> Result<Vec<String>, AdapterError> {
+    let TaskIntent::Form(data) = intent else {
+        return Err(AdapterError::InvalidIntent("查询只接受表单意图".into()));
+    };
+    let mut form: NetworkIntent = serde_json::from_value(data.clone())
+        .map_err(|e| AdapterError::InvalidIntent(e.to_string()))?;
+    if form.url.trim().is_empty() {
+        return Err(AdapterError::MissingUrl);
+    }
+    form.mode = NetworkMode::Video;
+    let probe_ctx = NetworkCtx {
+        deno_path: ctx.deno_path.clone(),
+        ffmpeg_location: None,
+    };
+    let mut argv = build_argv(&form, &probe_ctx, true);
+    match kind {
+        ProbeKind::Formats => argv.push("--list-formats".into()),
+        ProbeKind::Metadata => {
+            argv.push("--skip-download".into());
+            argv.push("--dump-single-json".into());
+        }
+    }
+    Ok(argv)
+}
+
+/// 落库前的意图脱敏（§4.5）：Form 清空敏感字段（proxy 可能含账号密码）；Manual 存脱敏 argv。
+pub fn sanitize_intent(intent: &TaskIntent) -> TaskIntent {
+    match intent {
+        TaskIntent::Form(data) => {
+            let mut data = data.clone();
+            if let Some(map) = data.as_object_mut() {
+                for meta in registry::REGISTRY.iter().filter(|m| m.sensitive) {
+                    if map.contains_key(meta.field) {
+                        map.insert(
+                            meta.field.to_string(),
+                            serde_json::Value::String(String::new()),
+                        );
+                    }
+                }
+            }
+            TaskIntent::Form(data)
+        }
+        TaskIntent::Manual { argv } => TaskIntent::Manual {
+            argv: redact_argv(argv),
+        },
+    }
+}
+
+fn redact_argv(argv: &[String]) -> Vec<String> {
+    let sensitive: Vec<&str> = registry::sensitive_flags().collect();
+    let mut out = Vec::with_capacity(argv.len());
+    let mut mask_next = false;
+    for arg in argv {
+        if mask_next {
+            out.push("***".to_string());
+            mask_next = false;
+            continue;
+        }
+        if sensitive.iter().any(|f| arg == f) {
+            out.push(arg.clone());
+            mask_next = true;
+            continue;
+        }
+        if let Some(flag) = sensitive.iter().find(|f| {
+            arg.len() > f.len()
+                && arg.starts_with(*f)
+                && matches!(arg.as_bytes()[f.len()], b'=' | b' ')
+        }) {
+            let sep = arg.as_bytes()[flag.len()] as char;
+            out.push(format!("{flag}{sep}***"));
+            continue;
+        }
+        out.push(arg.clone());
+    }
+    out
+}
+
+fn title_for(mode: NetworkMode, url: &str) -> String {
+    let verb = match mode {
+        NetworkMode::Video => "下载",
+        NetworkMode::Audio => "下载音频",
+        NetworkMode::Thumbnail => "下载封面",
+        NetworkMode::Subtitles => "下载字幕",
+    };
+    format!("{verb} {url}")
+}

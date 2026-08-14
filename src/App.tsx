@@ -1,67 +1,54 @@
 import {
-  Box,
-  Download,
-  Film,
-  Gauge,
-  Home,
-  ListVideo,
-  Music2,
-  ScrollText,
-  Settings,
-  SlidersHorizontal
-} from "lucide-react";
-import { useState } from "react";
+  IconBrandBilibili,
+  IconGauge,
+  IconHome,
+  IconLicense,
+  IconMovie,
+  IconMusic,
+  IconSettings,
+  IconWorldDownload
+} from "@tabler/icons-react";
+import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { notifications } from "@mantine/notifications";
 import { useBackend } from "./hooks/useBackend";
-import type {
-  MediaInspection,
-  DiagnosticExportResult,
-  LogExportRequest,
-  MusicdlPlaylistRequest,
-  MusicdlSearchRequest,
-  NavPage,
-  RunRequest,
-  RunResult
-} from "./lib/types";
-import { HomePage } from "./pages/HomePage";
-import { BilibiliPage } from "./pages/BilibiliPage";
-import { NetworkPage } from "./pages/NetworkPage";
-import { MediaPage } from "./pages/MediaPage";
-import { TasksPage } from "./pages/TasksPage";
-import { SettingsPage } from "./pages/SettingsPage";
-import { LicensesPage } from "./pages/LicensesPage";
-import { MusicPage } from "./pages/MusicPage";
-import appIcon from "./assets/app-icon.png";
-import { platformLabel } from "./lib/platform";
-import packageInfo from "../package.json";
+import { useTasksStore } from "./stores/tasks";
+import type { MusicdlPlaylistRequest, MusicdlSearchRequest, NavPage, RunResult } from "./lib/types";
+import type { TaskEnvelope } from "./contracts/types";
+import { AppShellV2, type NavEntry } from "./layouts/AppShellV2";
+import { HomePageV2 } from "./features/home/HomePageV2";
+import { LicensesPageV2 } from "./features/home/LicensesPageV2";
+import { BilibiliPageV2 } from "./features/bilibili/BilibiliPageV2";
+import { NetworkPageV2 } from "./features/network/NetworkPageV2";
+import { MediaPageV2 } from "./features/media/MediaPageV2";
+import { MusicPageV2 } from "./features/music/MusicPageV2";
+import { TasksPageV2 } from "./features/tasks/TasksPageV2";
+import { SettingsPageV2 } from "./features/settings/SettingsPageV2";
 
-const navItems: Array<{
-  page: NavPage;
-  label: string;
-  icon: typeof Home;
-}> = [
-  { page: "home", label: "首页", icon: Home },
-  { page: "bilibili", label: "哔哩哔哩下载", icon: Film },
-  { page: "network", label: "网络视频下载", icon: Download },
-  { page: "music", label: "音乐下载", icon: Music2 },
-  { page: "media", label: "媒体转换", icon: SlidersHorizontal },
-  { page: "streams", label: "封装与抽流", icon: ListVideo },
-  { page: "tasks", label: "任务中心", icon: Gauge }
+const navItems: NavEntry[] = [
+  { page: "home", label: "首页", icon: IconHome },
+  { page: "bilibili", label: "哔哩哔哩下载", icon: IconBrandBilibili },
+  { page: "network", label: "网络视频下载", icon: IconWorldDownload },
+  { page: "music", label: "音乐下载", icon: IconMusic },
+  { page: "media", label: "媒体处理", icon: IconMovie },
+  { page: "tasks", label: "任务中心", icon: IconGauge }
 ];
 
-const utilityItems: Array<{
-  page: NavPage;
-  label: string;
-  icon: typeof Home;
-}> = [
-  { page: "settings", label: "设置与分发", icon: Settings },
-  { page: "licenses", label: "开源许可", icon: ScrollText }
+const utilityItems: NavEntry[] = [
+  { page: "settings", label: "设置", icon: IconSettings },
+  { page: "licenses", label: "开源许可", icon: IconLicense }
 ];
 
 export default function App() {
   const [page, setPage] = useState<NavPage>("home");
-  const [toast, setToast] = useState<string | null>(null);
+  const [rerunSeed, setRerunSeed] = useState<TaskEnvelope | null>(null);
   const backend = useBackend();
+  const initTasksStore = useTasksStore((s) => s.init);
+
+  useEffect(() => {
+    void initTasksStore();
+  }, [initTasksStore]);
+
   const distributionMode =
     backend.dependencies.some((item) => item.required) &&
     backend.dependencies.every((item) => !item.required || item.bundledAvailable)
@@ -69,52 +56,10 @@ export default function App() {
       : "Lite";
 
   const showError = (error: unknown) => {
-    const message = error instanceof Error ? error.message : String(error);
-    setToast(message);
-    window.setTimeout(() => setToast(null), 5000);
-  };
-
-  const run = async (request: RunRequest) => {
-    try {
-      const result = await backend.runTool(request);
-      const isBbdownLogin = request.tool === "bbdown" && request.args[0] === "login";
-      if (!isBbdownLogin) setPage("tasks");
-      return result;
-    } catch (error) {
-      showError(error);
-      throw error;
-    }
-  };
-
-  const checkNetwork = async (proxy: string) => {
-    try {
-      return await invoke<boolean>("check_youtube_access", { proxy: proxy || null });
-    } catch (error) {
-      showError(error);
-      return false;
-    }
-  };
-
-  const inspect = async (path: string) => {
-    return invoke<MediaInspection>("inspect_media", { path });
-  };
-
-  const expandInputs = async (paths: string[], includeSubtitles: boolean) => {
-    return invoke<string[]>("expand_media_inputs", { paths, includeSubtitles });
-  };
-
-  const runPrCompatible = async (input: string, outputDirectory: string) => {
-    try {
-      const result = await invoke("run_pr_compatible", {
-        input,
-        outputDirectory: outputDirectory || null
-      });
-      setPage("tasks");
-      return result;
-    } catch (error) {
-      showError(error);
-      throw error;
-    }
+    notifications.show({
+      color: "red",
+      message: error instanceof Error ? error.message : String(error)
+    });
   };
 
   const searchMusic = async (request: MusicdlSearchRequest) => {
@@ -149,7 +94,7 @@ export default function App() {
   };
 
   const renderMusicPage = () => (
-    <MusicPage
+    <MusicPageV2
       dependency={backend.dependencyMap.get("musicdl") ?? null}
       pythonDependency={backend.dependencyMap.get("python") ?? null}
       defaultOutputDirectory={backend.settings.defaultOutputDirectory}
@@ -163,9 +108,8 @@ export default function App() {
   const renderPage = () => {
     if (page === "home") {
       return (
-        <HomePage
+        <HomePageV2
           dependencies={backend.dependencies}
-          distributionMode={distributionMode}
           loading={backend.loadingDependencies}
           onRefresh={() => void backend.refreshDependencies()}
           onNavigate={setPage}
@@ -174,60 +118,50 @@ export default function App() {
     }
     if (page === "bilibili") {
       return (
-        <BilibiliPage
-          bbdownAvailable={backend.dependencyMap.get("bbdown")?.available ?? false}
-          bbdownAuthStatus={backend.bbdownAuthStatus}
-          loginQr={backend.loginQr}
-          onRun={run}
+        <BilibiliPageV2
+          seed={rerunSeed?.feature === "bilibili" ? rerunSeed : null}
+          onSeedConsumed={() => setRerunSeed(null)}
+          onSubmitted={() => setPage("tasks")}
         />
       );
     }
     if (page === "network") {
       return (
-        <NetworkPage
-          ytDlpAvailable={backend.dependencyMap.get("yt-dlp")?.available ?? false}
-          denoPath={backend.dependencyMap.get("deno")?.path ?? null}
-          defaultOutputDirectory={backend.settings.defaultOutputDirectory}
-          onRun={run}
-          onCheckNetwork={checkNetwork}
+        <NetworkPageV2
+          seed={rerunSeed?.feature === "network" ? rerunSeed : null}
+          onSeedConsumed={() => setRerunSeed(null)}
+          onSubmitted={() => setPage("tasks")}
         />
       );
     }
-    if (page === "media" || page === "streams") {
+    if (page === "media") {
       return (
-        <MediaPage
-          key={page}
-          pageMode={page === "streams" ? "streams" : "media"}
-          ffmpegAvailable={backend.dependencyMap.get("ffmpeg")?.available ?? false}
-          ffmpegEncoders={backend.ffmpegEncoders}
-          defaultOutputDirectory={backend.settings.defaultOutputDirectory}
-          onRun={run}
-          onRunPrCompatible={runPrCompatible}
-          onInspect={inspect}
-          onExpandInputs={expandInputs}
+        <MediaPageV2
+          seed={rerunSeed?.feature === "media" ? rerunSeed : null}
+          onSeedConsumed={() => setRerunSeed(null)}
+          onSubmitted={() => setPage("tasks")}
         />
       );
     }
     if (page === "tasks") {
       return (
-        <TasksPage
-          jobs={backend.jobs}
-          logs={backend.logs}
-          onCancel={(jobId) => void backend.cancelJob(jobId).catch(showError)}
-          onExport={async (request: LogExportRequest) => {
-            try {
-              return await invoke<DiagnosticExportResult>("export_job_log", { request });
-            } catch (error) {
-              showError(error);
-              throw error;
-            }
+        <TasksPageV2
+          onRerun={(task) => {
+            setRerunSeed(task);
+            setPage(
+              task.feature === "network"
+                ? "network"
+                : task.feature === "media"
+                  ? "media"
+                  : "bilibili"
+            );
           }}
         />
       );
     }
     if (page === "settings") {
       return (
-        <SettingsPage
+        <SettingsPageV2
           settings={backend.settings}
           distributionMode={distributionMode}
           onSave={async (settings) => {
@@ -238,66 +172,20 @@ export default function App() {
         />
       );
     }
-    return <LicensesPage />;
+    return <LicensesPageV2 />;
   };
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="window-drag" data-tauri-drag-region />
-        <div className="brand">
-          <span className="brand-icon">
-            <img src={appIcon} alt="" />
-          </span>
-          <span>
-            <strong>MAD Toolbox</strong>
-            <small>
-              v{packageInfo.version} · {distributionMode}
-            </small>
-          </span>
-        </div>
-        <nav>
-          {navItems.map(({ page: target, label, icon: Icon }) => (
-            <button
-              type="button"
-              key={target}
-              className={page === target ? "active" : ""}
-              onClick={() => setPage(target)}
-            >
-              <Icon size={17} />
-              {label}
-            </button>
-          ))}
-        </nav>
-        <div className="sidebar-spacer" />
-        <nav className="utility-nav">
-          {utilityItems.map(({ page: target, label, icon: Icon }) => (
-            <button
-              type="button"
-              key={target}
-              className={page === target ? "active" : ""}
-              onClick={() => setPage(target)}
-            >
-              <Icon size={17} />
-              {label}
-            </button>
-          ))}
-        </nav>
-        <div className="build-badge">
-          <Box size={14} />
-          {platformLabel}
-        </div>
-      </aside>
-      <main className="workspace">
-        <div className="top-drag" data-tauri-drag-region />
-        <div className="page-scroll">
-          <div className={`persistent-page ${page === "music" ? "active" : ""}`}>
-            {renderMusicPage()}
-          </div>
-          {page !== "music" && renderPage()}
-        </div>
-      </main>
-      {toast && <div className="toast">{toast}</div>}
-    </div>
+    <AppShellV2
+      navItems={navItems}
+      utilityItems={utilityItems}
+      active={page}
+      onNavigate={setPage}
+      distributionMode={distributionMode}
+    >
+      {/* 音乐页常驻挂载：保留搜索会话（沿旧行为） */}
+      <div style={{ display: page === "music" ? "block" : "none" }}>{renderMusicPage()}</div>
+      {page !== "music" && renderPage()}
+    </AppShellV2>
   );
 }

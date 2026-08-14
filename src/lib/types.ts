@@ -15,46 +15,12 @@ export interface DependencyStatus {
   installHint: string | null;
 }
 
-export interface JobLog {
-  jobId: string;
-  tool: ToolName;
-  stream: "system" | "stdout" | "stderr";
-  line: string;
-  timestamp: string;
-}
-
 export interface JobState {
   jobId: string;
   tool: ToolName;
-  state: "running" | "completed" | "failed" | "cancelled";
+  state: "running" | "completed" | "failed";
   exitCode: number | null;
   message: string;
-}
-
-export interface DiagnosticExportRequest {
-  job: JobState;
-  logs: JobLog[];
-  outputPath: string;
-  includeLogs: boolean;
-  includeDependencyPaths: boolean;
-  redactPersonalData: boolean;
-}
-
-export interface DiagnosticExportResult {
-  path: string;
-}
-
-export interface LogExportRequest {
-  job: JobState;
-  logs: JobLog[];
-  outputPath: string;
-}
-
-export interface RunRequest {
-  tool: ToolName;
-  args: string[];
-  fallbackArgs?: string[] | null;
-  workingDir?: string | null;
 }
 
 export interface RunResult {
@@ -64,18 +30,6 @@ export interface RunResult {
 export interface AppSettings {
   defaultOutputDirectory: string | null;
   dependencyPreference: "bundled" | "system";
-}
-
-export interface LoginQr {
-  jobId: string;
-  dataUrl: string;
-}
-
-export type BbdownAuthStatus = "unknown" | "authenticated" | "unauthenticated";
-
-export interface MediaInspection {
-  path: string;
-  summary: string;
 }
 
 export interface MusicdlSearchRequest {
@@ -123,12 +77,4 @@ export interface MusicdlSearchResponse {
 }
 
 export type NavPage =
-  | "home"
-  | "bilibili"
-  | "network"
-  | "music"
-  | "media"
-  | "streams"
-  | "tasks"
-  | "settings"
-  | "licenses";
+  "home" | "bilibili" | "network" | "music" | "media" | "tasks" | "settings" | "licenses";

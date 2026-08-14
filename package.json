@@ -9,24 +9,23 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build:lite": "tauri build --target aarch64-apple-darwin",
-    "tauri:build:full": "sh scripts/build-full-macos.sh",
-    "tauri:build:windows:lite": "powershell -ExecutionPolicy Bypass -File scripts/build-windows.ps1 -Edition Lite",
-    "tauri:build:windows:full": "powershell -ExecutionPolicy Bypass -File scripts/build-windows.ps1 -Edition Full",
+    "tauri:build:lite": "node scripts/build-app.mjs --edition lite",
+    "tauri:build:full": "node scripts/build-app.mjs --edition full",
     "check": "tsc --noEmit && tsc -p tsconfig.node.json --noEmit",
     "format": "node scripts/format-changed.mjs --write",
-    "format:check": "prettier --check . --ignore-unknown",
-    "verify:bundled": "sh scripts/verify-bundled-tools.sh",
-    "verify:windows:lite": "powershell -ExecutionPolicy Bypass -File scripts/verify-windows-tools.ps1 -Edition Lite",
-    "verify:windows:full": "powershell -ExecutionPolicy Bypass -File scripts/verify-windows-tools.ps1 -Edition Full"
+    "format:check": "prettier --check . --ignore-unknown"
   },
   "dependencies": {
+    "@mantine/core": "^9.5.1",
+    "@mantine/hooks": "^9.5.1",
+    "@mantine/notifications": "^9.5.1",
+    "@tabler/icons-react": "^3.46.0",
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-dialog": "^2.0.0",
     "@tauri-apps/plugin-opener": "^2.0.0",
-    "lucide-react": "^0.468.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "zustand": "^5.0.15"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.0.0",

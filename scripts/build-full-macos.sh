@@ -16,11 +16,12 @@ trap cleanup EXIT INT TERM
 cd "$project_directory"
 version="$(node -p "require('./package.json').version")"
 dmg="$dmg_directory/MAD Toolbox_${version}_aarch64.dmg"
-npm run verify:bundled
+sh "$project_directory/scripts/verify-bundled-tools.sh"
 npm exec tauri -- build \
   --target aarch64-apple-darwin \
   --config src-tauri/tauri.full.conf.json \
-  --bundles app
+  --bundles app \
+  "$@"
 
 # Tauri applies hardened runtime to every sidecar. Restore the verified
 # upstream PyInstaller executables byte-for-byte, then reseal only the outer

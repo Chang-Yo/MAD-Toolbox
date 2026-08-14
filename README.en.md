@@ -25,9 +25,8 @@ that can be exported from Task Center.
 
 - BBDown Bilibili downloads that follow the original CLI behavior, with
   beginner presets and advanced CLI parameters.
-- yt-dlp downloads with YouTube reachability testing, global-proxy guidance,
-  explicit HTTP/HTTPS/SOCKS proxy settings, browser-Cookie fallback and
-  advanced format controls.
+- yt-dlp downloads with explicit HTTP/HTTPS/SOCKS proxy settings,
+  browser-Cookie fallback and advanced format controls.
 - FFmpeg media processing with drag-and-drop files or folders, localized
   MediaInfo inspection, remuxing, stream extraction, ASS/SRT subtitles,
   conversion, bitrate/frame-rate/scaling controls, GIFs and image sequences.
@@ -148,11 +147,11 @@ npm run tauri:dev
 Create Windows installers:
 
 ```powershell
-npm run tauri:build:windows:lite
-npm run tauri:build:windows:full
+npm run tauri:build:lite
+npm run tauri:build:full
 ```
 
-The Windows build scripts verify the BBDown binary distributed with the
+The two build commands select the native packaging flow for the current host. The Windows build scripts verify the BBDown binary distributed with the
 repository. Full builds also download and verify the remaining Windows
 sidecars, then produce a bilingual NSIS installer. Unsigned installers may
 trigger a SmartScreen "unknown publisher" warning.

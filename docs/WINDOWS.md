@@ -9,8 +9,7 @@ currently produced.
 The Windows GUI uses the same pages and command-generation model as macOS:
 
 - original BBDown CLI login/download behavior and advanced parameters;
-- yt-dlp connectivity testing, global-proxy guidance, explicit proxy and
-  advanced parameters;
+- yt-dlp downloads with explicit proxy settings and advanced parameters;
 - file/folder media probing, Premiere-compatible smart MP4 workflow,
   remuxing, stream extraction, ASS/SRT subtitle extraction, professional
   FFmpeg controls and directory task queues;
@@ -50,11 +49,11 @@ Prepare and build:
 
 ```powershell
 npm ci
-npm run tauri:build:windows:lite
-npm run tauri:build:windows:full
+npm run tauri:build:lite
+npm run tauri:build:full
 ```
 
-The build scripts download only missing artifacts and verify pinned SHA-256
+The package scripts select the Windows x64 build flow on a Windows x64 host. The build scripts download only missing artifacts and verify pinned SHA-256
 values. The output is a per-user bilingual NSIS installer. The build machine
 needs network access when a pinned artifact or the Full-only WebView2 offline
 package is not already cached; this does not create a network requirement for

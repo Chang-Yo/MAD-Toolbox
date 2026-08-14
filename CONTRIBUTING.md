@@ -23,7 +23,7 @@ run:
 ```bash
 npm ci
 npm run check
-cargo test --manifest-path src-tauri/Cargo.toml
+cargo check --manifest-path src-tauri/Cargo.toml --all-targets
 ```
 
 Use `npm run tauri:dev` for interactive testing. Platform packaging

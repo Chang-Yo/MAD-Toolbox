@@ -12,9 +12,8 @@ export interface TaskLogLine {
 }
 
 export interface TasksState {
-  /** id → 信封（事件到达即覆盖，事件比快照新）。 */
   tasks: Record<string, TaskEnvelope>;
-  /** id → 最近日志行，每任务封顶 MAX_LOG_LINES（内存上限）。 */
+
   logs: Record<string, TaskLogLine[]>;
 }
 
@@ -26,7 +25,10 @@ export function applyTaskEvent(state: TasksState, event: TaskEvent): TasksState 
   switch (event.type) {
     case "changed": {
       const envelope = event.data;
-      return { ...state, tasks: { ...state.tasks, [envelope.id]: envelope } };
+      // 终态信封不携带 progress，保留内存中最后已知进度（失败时进度条停在原地变红）
+      const lastProgress = envelope.progress ?? state.tasks[envelope.id]?.progress;
+      const merged = lastProgress ? { ...envelope, progress: lastProgress } : envelope;
+      return { ...state, tasks: { ...state.tasks, [envelope.id]: merged } };
     }
     case "log": {
       const { taskId, stream, line, seq } = event.data;
@@ -62,14 +64,42 @@ export function applySnapshot(state: TasksState, snapshot: TaskEnvelope[]): Task
   return { ...state, tasks };
 }
 
-/** 池占用：从任务状态推导（canceling 仍占槽位），不依赖后端同步接口（§8）。 */
+/**
+ * 删除任务（后端已确认的 id 列表）；内存日志随任务一并清出。
+ */
+export function removeTasks(state: TasksState, ids: string[]): TasksState {
+  if (ids.length === 0) return state;
+  const removing = new Set(ids);
+  const tasks: TasksState["tasks"] = {};
+  const logs: TasksState["logs"] = {};
+  for (const [id, envelope] of Object.entries(state.tasks)) {
+    if (!removing.has(id)) tasks[id] = envelope;
+  }
+  for (const [id, lines] of Object.entries(state.logs)) {
+    if (!removing.has(id)) logs[id] = lines;
+  }
+  return { tasks, logs };
+}
+
 export function poolOccupancy(state: TasksState, pool: Pool): number {
   return Object.values(state.tasks).filter(
     (t) => t.pool === pool && (t.status === "running" || t.status === "canceling")
   ).length;
 }
 
-/** 展示顺序：创建时间倒序。 */
 export function sortedTasks(state: TasksState): TaskEnvelope[] {
   return Object.values(state.tasks).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export function splitByDay(tasks: TaskEnvelope[]): {
+  today: TaskEnvelope[];
+  history: TaskEnvelope[];
+} {
+  const todayKey = new Date().toDateString();
+  const today: TaskEnvelope[] = [];
+  const history: TaskEnvelope[] = [];
+  for (const task of tasks) {
+    (new Date(task.createdAt).toDateString() === todayKey ? today : history).push(task);
+  }
+  return { today, history };
 }

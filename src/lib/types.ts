@@ -18,7 +18,7 @@ export interface DependencyStatus {
 export interface JobState {
   jobId: string;
   tool: ToolName;
-  state: "running" | "completed" | "failed";
+  state: "running" | "completed" | "failed" | "canceled";
   exitCode: number | null;
   message: string;
 }
@@ -27,9 +27,14 @@ export interface RunResult {
   jobId: string;
 }
 
+export interface TaskSubmitResult {
+  taskId: string;
+}
+
 export interface AppSettings {
   defaultOutputDirectory: string | null;
   dependencyPreference: "bundled" | "system";
+  proxy: string | null;
 }
 
 export interface MusicdlSearchRequest {
@@ -75,6 +80,3 @@ export interface MusicdlSearchResponse {
   sessionId: string;
   results: MusicdlSearchResult[];
 }
-
-export type NavPage =
-  "home" | "bilibili" | "network" | "music" | "media" | "tasks" | "settings" | "licenses";

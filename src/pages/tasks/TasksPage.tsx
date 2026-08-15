@@ -1,0 +1,164 @@
+/**
+ * 新任务中心（样板最小版）：读全局任务 store，任务卡片列表。
+ * 池定义一次性拉取；占用数从任务事件推导（§8：不新增实时同步接口）。
+ * 标题下方带边框汇总容器：上层当日三种状态统计，下层并发池逐行指示条；
+ * 往日任务收进「历史任务」折叠区。
+ */
+
+import { Badge, Box, Button, Card, Group, Stack, Text, Title } from "@mantine/core";
+import { notifications } from "@mantine/notifications";
+import { invoke } from "@tauri-apps/api/core";
+import { useEffect, useMemo, useState } from "react";
+import { CollapsibleSection } from "../../components/CollapsibleSection";
+import { PoolIndicator, type PoolDefinition } from "../../components/PoolIndicator";
+import { TaskCard } from "../../components/TaskCard";
+import type { TaskEnvelope } from "../../contracts/types";
+import { poolOccupancy, sortedTasks, splitByDay } from "../../stores/tasks.reducer";
+import { useTasksStore } from "../../stores/tasks";
+
+interface TasksPageProps {
+  onRerun: (task: TaskEnvelope) => void;
+}
+
+function HeroStat({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <Group gap="xs" wrap="nowrap" align="center">
+      <Text size="lg" fw={600} lh={1}>
+        {label}
+      </Text>
+      <Text fw={800} c={color} lh={1} style={{ fontSize: 28 }}>
+        {value}
+      </Text>
+    </Group>
+  );
+}
+
+export function TasksPage({ onRerun }: TasksPageProps) {
+  const tasks = useTasksStore((s) => s.tasks);
+  const logs = useTasksStore((s) => s.logs);
+  const cancel = useTasksStore((s) => s.cancel);
+  const promote = useTasksStore((s) => s.promote);
+  const remove = useTasksStore((s) => s.remove);
+  const [definitions, setDefinitions] = useState<PoolDefinition[]>([]);
+  const [todayOpen, setTodayOpen] = useState(true);
+  const [historyOpen, setHistoryOpen] = useState(false);
+
+  useEffect(() => {
+    if (import.meta.env.DEV && !("__TAURI_INTERNALS__" in window)) {
+      void import("../../../mock/tasks.mock")
+        .then((m) => setDefinitions(m.MOCK_POOLS))
+        .catch(() => {});
+      return;
+    }
+    void invoke<PoolDefinition[]>("pool_definitions")
+      .then(setDefinitions)
+      .catch(() => {});
+  }, []);
+
+  const state = useMemo(() => ({ tasks, logs }), [tasks, logs]);
+  const sorted = useMemo(() => sortedTasks(state), [state]);
+  const { today, history } = useMemo(() => splitByDay(sorted), [sorted]);
+  const hero = useMemo(
+    () => ({
+      active: today.filter(
+        (t) => t.status === "queued" || t.status === "running" || t.status === "canceling"
+      ).length,
+      interrupted: today.filter((t) => t.status === "interrupted").length,
+      finished: today.filter((t) => ["success", "failed", "canceled"].includes(t.status)).length
+    }),
+    [today]
+  );
+
+  const deleteTasks = (ids: string[]) => {
+    remove(ids).catch((error) =>
+      notifications.show({ message: `删除任务失败：${String(error)}`, color: "red" })
+    );
+  };
+
+  const renderCard = (task: TaskEnvelope) => (
+    <TaskCard
+      key={task.id}
+      task={task}
+      logs={logs[task.id]}
+      onCancel={cancel}
+      onPromote={promote}
+      onDelete={(id) => deleteTasks([id])}
+      onRerun={task.feature === "music" ? undefined : onRerun}
+    />
+  );
+
+  return (
+    <Stack gap="md" p="md">
+      <Title order={3}>任务中心</Title>
+      {sorted.length === 0 ? (
+        <Text c="dimmed" size="sm">
+          还没有任务。从功能页提交下载后会出现在这里。
+        </Text>
+      ) : (
+        <>
+          <Card withBorder padding="lg">
+            <Stack gap="md" align="center">
+              <Group justify="center" gap="12%" w="100%" wrap="nowrap">
+                <HeroStat label="运行中" value={hero.active} color="orange" />
+                <HeroStat label="中断" value={hero.interrupted} color="yellow" />
+                <HeroStat label="结束" value={hero.finished} color="gray" />
+              </Group>
+              <Box w="100%">
+                <PoolIndicator
+                  definitions={definitions}
+                  occupancy={(pool) => poolOccupancy(state, pool)}
+                />
+              </Box>
+            </Stack>
+          </Card>
+          {today.length > 0 && (
+            <CollapsibleSection
+              title={
+                <Group gap="xs" wrap="nowrap">
+                  <Text size="sm" fw={500}>
+                    今日任务
+                  </Text>
+                  <Badge variant="light" color="gray">
+                    {today.length}
+                  </Badge>
+                </Group>
+              }
+              opened={todayOpen}
+              onToggle={() => setTodayOpen((value) => !value)}
+            >
+              <Stack gap="xs">{today.map(renderCard)}</Stack>
+            </CollapsibleSection>
+          )}
+          {history.length > 0 && (
+            <CollapsibleSection
+              title={
+                <Group gap="xs" wrap="nowrap">
+                  <Text size="sm" fw={500}>
+                    历史任务
+                  </Text>
+                  <Badge variant="light" color="gray">
+                    {history.length}
+                  </Badge>
+                </Group>
+              }
+              opened={historyOpen}
+              onToggle={() => setHistoryOpen((value) => !value)}
+              action={
+                <Button
+                  size="compact-xs"
+                  variant="light"
+                  color="red"
+                  onClick={() => deleteTasks(history.map((t) => t.id))}
+                >
+                  全部删除
+                </Button>
+              }
+            >
+              <Stack gap="xs">{history.map(renderCard)}</Stack>
+            </CollapsibleSection>
+          )}
+        </>
+      )}
+    </Stack>
+  );
+}

@@ -1,0 +1,74 @@
+/* 顶栏 L1 导航选中高亮的滑移过渡：
+   刚体平移——left/right 以同一曲线同步插值，宽度全程恒定；
+   easeInOutCubic：起步加速、到位减速。 */
+.top-nav-pill {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  z-index: 0;
+  border-radius: var(--mantine-radius-md);
+  background: var(--mantine-primary-color-light);
+  pointer-events: none;
+  transition:
+    left 340ms cubic-bezier(0.65, 0, 0.35, 1),
+    right 340ms cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+.top-nav-pill-resizing {
+  transition: none;
+}
+
+/* 顶栏 L1 导航布局：宽度由 header 网格的 50% 列决定，六个区域均分。
+   图标随视口宽度缩放（820px 最小窗口 → 18px，1920px → 接近 24px），
+   仅作用于导航区，右侧主题/GitHub/MPS 图标不受影响。 */
+.top-nav-item {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+}
+
+.top-nav .tabler-icon {
+  width: clamp(18px, calc(0.55vw + 13px), 24px);
+  height: clamp(18px, calc(0.55vw + 13px), 24px);
+}
+
+.top-nav-task-running .tabler-icon path {
+  stroke-dasharray: 64;
+  animation: top-nav-icon-draw 2.4s cubic-bezier(0.45, 0, 0.2, 1) infinite;
+}
+
+@keyframes top-nav-icon-draw {
+  0% {
+    stroke-dashoffset: 64;
+  }
+  45%,
+  70% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: -64;
+  }
+}
+
+/* 工作区/普通页面切换时的入场动画。
+   <Activity> 与 [hidden] 隐藏均为 display:none，重新可见时动画会重放。 */
+@keyframes workspace-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.workspace-enter {
+  animation: workspace-enter 180ms ease-out;
+}
+
+/* 注：刻意不跟随 prefers-reduced-motion——WebView2 会把 Windows
+   「关闭动画效果 / 调整为最佳性能 / RDP 会话」映射为 reduce，
+   曾导致本文件全部动效在部分环境下静默失效；
+   这些均为轻量微动效，保持常开。 */

@@ -1,0 +1,11 @@
+main {
+  scrollbar-width: none; /* 标准写法（Firefox 系） */
+}
+
+main::-webkit-scrollbar {
+  display: none; /* WebView2/Chromium */
+}
+
+.app-notifications[data-position="top-right"] {
+  top: calc(66px + var(--mantine-spacing-sm));
+}

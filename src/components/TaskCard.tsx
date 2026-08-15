@@ -1,6 +1,8 @@
 /**
  * 任务卡片：左边界按 feature 着色（颜色为冗余编码，状态徽章文字仍在）。
- * 失败任务内联日志尾部若干行（§8 已定），完整日志走 [打开日志]（shell 打开，壳不做查看器）。
+ * 收起时只显示标题行（状态 + 名称 + 取消/日志/诊断/输出位置/删除）与状态进度条；
+ * 展开后显示完整命令、置顶/重跑等上下文操作和失败日志尾部（§8 已定）。
+ * 完整日志走 [打开日志]（shell 打开，壳不做查看器）。
  */
 
 import {
@@ -9,10 +11,13 @@ import {
   Button,
   Card,
   Code,
+  Collapse,
   Group,
   Progress,
+  Stack,
   Text,
-  Tooltip
+  Tooltip,
+  UnstyledButton
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { invoke } from "@tauri-apps/api/core";
@@ -20,11 +25,14 @@ import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
 import {
   IconArrowUp,
+  IconChevronRight,
   IconFileDownload,
   IconFileText,
   IconFolderOpen,
+  IconTrash,
   IconX
 } from "@tabler/icons-react";
+import { useState } from "react";
 import type { TaskEnvelope, TaskStatus } from "../contracts/types";
 import type { TaskLogLine } from "../stores/tasks.reducer";
 
@@ -52,16 +60,44 @@ interface TaskCardProps {
   logs?: TaskLogLine[];
   onCancel: (id: string) => void;
   onPromote: (id: string) => void;
+  onDelete: (id: string) => void;
   onRerun?: (task: TaskEnvelope) => void;
 }
 
 const TERMINAL_STATUSES = new Set(["success", "failed", "canceled", "interrupted"]);
 
-export function TaskCard({ task, logs, onCancel, onPromote, onRerun }: TaskCardProps) {
+interface ProgressView {
+  value: number;
+  color: string;
+  animated: boolean;
+}
+
+function progressView(task: TaskEnvelope): ProgressView | null {
+  const last = task.progress?.percent ?? null;
+  switch (task.status) {
+    case "queued":
+      return null;
+    case "running":
+    case "canceling":
+      return { value: last ?? 0, color: "orange", animated: true };
+    case "success":
+      return { value: 100, color: "green", animated: false };
+    case "failed":
+      return { value: last ?? 100, color: "red", animated: false };
+    case "interrupted":
+      return last == null ? null : { value: last, color: "yellow", animated: false };
+    case "canceled":
+      return last == null ? null : { value: last, color: "gray", animated: false };
+  }
+}
+
+export function TaskCard({ task, logs, onCancel, onPromote, onDelete, onRerun }: TaskCardProps) {
+  const [opened, setOpened] = useState(false);
   const status = STATUS_META[task.status];
   const cancellable = task.status === "queued" || task.status === "running";
   const failedTail =
     task.status === "failed" && logs?.length ? logs.slice(-FAILED_TAIL_LINES) : null;
+  const bar = progressView(task);
 
   const exportDiagnostics = async () => {
     const target = await saveDialog({
@@ -77,6 +113,24 @@ export function TaskCard({ task, logs, onCancel, onPromote, onRerun }: TaskCardP
     }
   };
 
+  // 打开失败（权限/文件缺失）必须有可见反馈，否则按钮形似无响应
+  const notifyOpenError = (what: string) => (error: unknown) => {
+    notifications.show({ message: `无法打开${what}：${String(error)}`, color: "red" });
+  };
+
+  const openLogFile = () => {
+    const path = task.logPath;
+    if (path) openPath(path).catch(notifyOpenError("日志文件"));
+  };
+
+  const revealOutput = () => {
+    if (task.outputPaths[0]) {
+      revealItemInDir(task.outputPaths[0]).catch(notifyOpenError("输出位置"));
+    } else if (task.workingDir) {
+      openPath(task.workingDir).catch(notifyOpenError("输出位置"));
+    }
+  };
+
   return (
     <Card
       withBorder
@@ -84,26 +138,39 @@ export function TaskCard({ task, logs, onCancel, onPromote, onRerun }: TaskCardP
       style={{ borderLeft: `3px solid ${FEATURE_COLORS[task.feature]}` }}
     >
       <Group justify="space-between" wrap="nowrap">
-        <Group gap="xs" wrap="nowrap" style={{ minWidth: 0 }}>
-          <Badge color={status.color} variant="light">
-            {status.label}
-          </Badge>
-          <Text size="sm" fw={500} truncate>
-            {task.title}
-          </Text>
-        </Group>
+        <UnstyledButton
+          onClick={() => setOpened((value) => !value)}
+          aria-expanded={opened}
+          style={{ flex: "1 1 auto", minWidth: 0 }}
+        >
+          <Group gap="xs" wrap="nowrap">
+            <IconChevronRight
+              size={16}
+              style={{
+                transform: opened ? "rotate(90deg)" : "none",
+                transition: "transform 150ms ease"
+              }}
+            />
+            <Badge color={status.color} variant="light">
+              {status.label}
+            </Badge>
+            <Text size="sm" fw={500} truncate>
+              {task.title}
+            </Text>
+          </Group>
+        </UnstyledButton>
         <Group gap={4} wrap="nowrap">
-          {task.status === "queued" && (
-            <Tooltip label="置顶（移到队首）">
-              <ActionIcon variant="subtle" onClick={() => onPromote(task.id)}>
-                <IconArrowUp size={16} />
-              </ActionIcon>
-            </Tooltip>
-          )}
           {cancellable && (
             <Tooltip label="取消">
               <ActionIcon variant="subtle" color="red" onClick={() => onCancel(task.id)}>
                 <IconX size={16} />
+              </ActionIcon>
+            </Tooltip>
+          )}
+          {task.logPath && (
+            <Tooltip label="打开日志文件">
+              <ActionIcon variant="subtle" onClick={openLogFile}>
+                <IconFileText size={16} />
               </ActionIcon>
             </Tooltip>
           )}
@@ -114,54 +181,56 @@ export function TaskCard({ task, logs, onCancel, onPromote, onRerun }: TaskCardP
               </ActionIcon>
             </Tooltip>
           )}
-          {task.logPath && (
-            <Tooltip label="打开日志文件">
-              <ActionIcon variant="subtle" onClick={() => void openPath(task.logPath!)}>
-                <IconFileText size={16} />
+          {(task.outputPaths[0] || task.workingDir) && (
+            <Tooltip label="打开输出位置">
+              <ActionIcon variant="subtle" onClick={revealOutput}>
+                <IconFolderOpen size={16} />
               </ActionIcon>
             </Tooltip>
           )}
-          {(task.outputPaths[0] || task.workingDir) && (
-            <Tooltip label="打开输出位置">
-              <ActionIcon
-                variant="subtle"
-                onClick={() =>
-                  task.outputPaths[0]
-                    ? void revealItemInDir(task.outputPaths[0])
-                    : void openPath(task.workingDir!)
-                }
-              >
-                <IconFolderOpen size={16} />
+          {TERMINAL_STATUSES.has(task.status) && (
+            <Tooltip label="删除任务">
+              <ActionIcon variant="subtle" color="red" onClick={() => onDelete(task.id)}>
+                <IconTrash size={16} />
               </ActionIcon>
             </Tooltip>
           )}
         </Group>
       </Group>
 
-      <Code block mt="xs" style={{ fontSize: 11, whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
-        {task.tool} {task.argvRedacted.join(" ")}
-      </Code>
-
-      {task.status === "running" && task.progress?.percent != null && (
-        <Progress mt="xs" value={task.progress.percent} size="sm" animated />
+      {bar && bar.value > 0 && (
+        <Progress mt={6} size="xs" value={bar.value} color={bar.color} animated={bar.animated} />
       )}
 
-      {task.status === "interrupted" && onRerun && (
-        <Group mt="xs">
-          <Text size="xs" c="dimmed">
-            {task.startedAt ? "上次会话中被中断" : "排队中未执行"}
-          </Text>
-          <Button size="compact-xs" variant="light" onClick={() => onRerun(task)}>
-            再次运行
-          </Button>
-        </Group>
-      )}
-
-      {failedTail && (
-        <Code block mt="xs" c="red" style={{ fontSize: 11, whiteSpace: "pre-wrap" }}>
-          {failedTail.map((l) => l.line).join("\n")}
-        </Code>
-      )}
+      <Collapse expanded={opened}>
+        <Stack gap="xs" mt="xs">
+          <Code block style={{ fontSize: 11, whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+            {task.tool} {task.argvRedacted.join(" ")}
+          </Code>
+          {task.status === "queued" && (
+            <Tooltip label="置顶（移到队首）">
+              <ActionIcon variant="subtle" onClick={() => onPromote(task.id)}>
+                <IconArrowUp size={16} />
+              </ActionIcon>
+            </Tooltip>
+          )}
+          {task.status === "interrupted" && onRerun && (
+            <Group gap="xs">
+              <Text size="xs" c="dimmed">
+                {task.startedAt ? "上次会话中被中断" : "排队中未执行"}
+              </Text>
+              <Button size="compact-xs" variant="light" onClick={() => onRerun(task)}>
+                再次运行
+              </Button>
+            </Group>
+          )}
+          {failedTail && (
+            <Code block c="red" style={{ fontSize: 11, whiteSpace: "pre-wrap" }}>
+              {failedTail.map((l) => l.line).join("\n")}
+            </Code>
+          )}
+        </Stack>
+      </Collapse>
     </Card>
   );
 }

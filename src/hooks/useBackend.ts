@@ -12,7 +12,8 @@ export function useBackend() {
   const [loadingDependencies, setLoadingDependencies] = useState(true);
   const [settings, setSettings] = useState<AppSettings>({
     defaultOutputDirectory: null,
-    dependencyPreference: "bundled"
+    dependencyPreference: "bundled",
+    proxy: null
   });
 
   const refreshDependencies = useCallback(async () => {

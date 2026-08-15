@@ -1,11 +1,34 @@
 #!/bin/sh
+# macOS packaging entry for Apple Silicon. Invoked by scripts/build/build.js,
+# which already ran the TypeScript and cargo preflight checks.
+#
+# usage: macos.sh <lite|full> [tauri build arguments...]
 set -eu
 
-project_directory="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)"
+edition="${1:-}"
+if [ "$#" -gt 0 ]; then shift; fi
+case "$edition" in
+  lite | full) ;;
+  *)
+    echo "usage: macos.sh <lite|full> [tauri build arguments...]" >&2
+    exit 2
+    ;;
+esac
+
+project_directory="$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)"
 app="$project_directory/src-tauri/target/aarch64-apple-darwin/release/bundle/macos/MAD Toolbox.app"
 dmg_directory="$project_directory/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg"
 yt_dlp="$project_directory/src-tauri/binaries/yt-dlp-aarch64-apple-darwin"
 bbdown="$project_directory/src-tauri/binaries/BBDown-aarch64-apple-darwin"
+
+cd "$project_directory"
+sh "$project_directory/scripts/build/macos-tools.sh" "$edition"
+
+if [ "$edition" = "lite" ]; then
+  npm exec tauri -- build --target aarch64-apple-darwin "$@"
+  exit 0
+fi
+
 staging_directory="$(mktemp -d /private/tmp/mad-toolbox-full-dmg.XXXXXX)"
 
 cleanup() {
@@ -13,10 +36,8 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-cd "$project_directory"
 version="$(node -p "require('./package.json').version")"
 dmg="$dmg_directory/MAD Toolbox_${version}_aarch64.dmg"
-sh "$project_directory/scripts/verify-bundled-tools.sh"
 npm exec tauri -- build \
   --target aarch64-apple-darwin \
   --config src-tauri/tauri.full.conf.json \

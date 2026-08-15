@@ -53,7 +53,12 @@ npm run tauri:build:lite
 npm run tauri:build:full
 ```
 
-The package scripts select the Windows x64 build flow on a Windows x64 host. The build scripts download only missing artifacts and verify pinned SHA-256
+The package scripts select the Windows x64 build flow on a Windows x64 host;
+append `-- win` (for example `npm run tauri:build:lite -- win`) to pin the
+target explicitly. The flow runs on Windows PowerShell 5.1, which ships with
+Windows, so PowerShell 7 is not required. Every build first runs the TypeScript
+and cargo checks, then `scripts/build/windows-tools.ps1` downloads only missing
+artifacts and verifies pinned SHA-256
 values. The output is a per-user bilingual NSIS installer. The build machine
 needs network access when a pinned artifact or the Full-only WebView2 offline
 package is not already cached; this does not create a network requirement for

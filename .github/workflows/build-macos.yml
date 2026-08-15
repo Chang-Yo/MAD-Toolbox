@@ -45,22 +45,19 @@ jobs:
       - name: Install frontend packages
         run: npm ci
 
-      - name: Check frontend formatting and types
+      - name: Check frontend formatting
         run: npm run format:check
 
-      - name: Check frontend
-        run: npm run check
-
-      - name: Check backend
-        run: cargo check --manifest-path src-tauri/Cargo.toml --all-targets --target aarch64-apple-darwin
+      # TypeScript and cargo checks run as the preflight of the build command
+      # itself (scripts/build/build.js).
 
       - name: Build Lite DMG
         if: matrix.edition == 'Lite'
-        run: npm run tauri:build:lite -- --ci
+        run: npm run tauri:build:lite -- mac --ci
 
       - name: Build Full DMG
         if: matrix.edition == 'Full'
-        run: npm run tauri:build:full
+        run: npm run tauri:build:full -- mac --ci
 
       - name: Verify DMG and create checksum
         shell: bash

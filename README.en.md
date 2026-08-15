@@ -151,7 +151,12 @@ npm run tauri:build:lite
 npm run tauri:build:full
 ```
 
-The two build commands select the native packaging flow for the current host. The Windows build scripts verify the BBDown binary distributed with the
+The two build commands select the native packaging flow for the current host.
+An explicit target can be passed after `--` (`npm run tauri:build:lite -- win`
+or `-- mac`); the target must match the host, and cross-building is not
+supported. The Windows flow runs on Windows PowerShell 5.1, which ships with
+Windows, so PowerShell 7 is not required. The Windows build scripts verify the
+BBDown binary distributed with the
 repository. Full builds also download and verify the remaining Windows
 sidecars, then produce a bilingual NSIS installer. Unsigned installers may
 trigger a SmartScreen "unknown publisher" warning.

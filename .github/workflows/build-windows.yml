@@ -46,11 +46,11 @@ jobs:
       - name: Install frontend packages
         run: npm ci
 
-      - name: Check frontend formatting and types
+      - name: Check frontend formatting
         run: npm run format:check
 
       - name: Build unsigned NSIS installer
-        run: npm run ${{ matrix.build_script }} -- --no-sign --ci
+        run: npm run ${{ matrix.build_script }} -- win --no-sign --ci
 
       - name: Verify installer output
         shell: pwsh

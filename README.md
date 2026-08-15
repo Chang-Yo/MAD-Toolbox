@@ -105,7 +105,7 @@ npm run tauri:build:lite
 npm run tauri:build:full
 ```
 
-两个构建命令会根据当前系统选择对应的原生打包流程。Windows 构建脚本会校验随仓库分发的 BBDown，并在 Full 构建时下载、校验其余
+两个构建命令会根据当前系统选择对应的原生打包流程；也可以用 `-- win` / `-- mac` 显式指定平台（例如 `npm run tauri:build:lite -- win`），显式目标必须与当前系统一致，不支持交叉打包。Windows 打包使用系统自带的 Windows PowerShell 5.1，无需安装 PowerShell 7。Windows 构建脚本会校验随仓库分发的 BBDown，并在 Full 构建时下载、校验其余
 Windows sidecar 及 Full 版的 WebView2 离线安装包，随后生成中英双语 NSIS 安装包；这些
 网络访问发生在构建阶段，不是用户安装和启动阶段。Lite 构建不会下载或打包 WebView2
 安装包。未签名安装包可能触发

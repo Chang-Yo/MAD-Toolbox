@@ -1,7 +1,7 @@
 # MAD Toolbox 架构重构设计
 
-> 状态：讨论稿 v1 · 2026-08-12
-> 本文档沉淀重构讨论的架构决策与理由，不含实施排期。已定案的写"决策"，未定案的集中在 §10。
+> 状态：实施基线 v2 · 2026-08-14
+> 本文档沉淀已确认的架构决策、边界与实施顺序。未定案或需要外部输入的事项集中在 §10。
 
 ## 0. 现状与病因
 
@@ -120,21 +120,21 @@ src-tauri/src/
 
 一份 struct，三处使用：运行时调度对象、SQLite `tasks` 表的一行、推给前端的事件载荷。
 
-| 字段                                    | 写方                 | 对应需求                                                |
-| --------------------------------------- | -------------------- | ------------------------------------------------------- |
-| `id`                                    | 枢纽                 | —                                                       |
-| `kind`                                  | feature              | 派生 feature（UI 着色/徽章）与 pool（并发池路由，§4.4） |
-| `title`                                 | feature              | 任务列表显示（如"下载 BV1xxx…"）                        |
-| `status`                                | 枢纽                 | 状态机（§4.3）                                          |
-| `created_at / started_at / finished_at` | 枢纽                 | 按时间排序、跨会话归档                                  |
-| `tool / tool_version`                   | feature              | 详情页、排障                                            |
-| `argv_redacted`                         | feature              | 详情页展示"实际执行的命令"（脱敏版）                    |
-| `working_dir`                           | feature              | —                                                       |
-| `output_paths`                          | 输出解析器运行中回填 | 详情页 [打开目录]                                       |
-| `exit_code`                             | 枢纽                 | —                                                       |
-| `log_path`                              | 枢纽                 | 日志落盘（§4.5）                                        |
-| `intent`                                | feature              | 再次运行 / 基于此任务新建                               |
-| `progress`                              | 输出解析器           | 进度条（运行期内存态，不落库）                          |
+| 字段                                    | 写方                                            | 对应需求                                                |
+| --------------------------------------- | ----------------------------------------------- | ------------------------------------------------------- |
+| `id`                                    | 枢纽                                            | —                                                       |
+| `kind`                                  | feature                                         | 派生 feature（UI 着色/徽章）与 pool（并发池路由，§4.4） |
+| `title`                                 | feature                                         | 任务列表显示（如"下载 BV1xxx…"）                        |
+| `status`                                | 枢纽                                            | 状态机（§4.3）                                          |
+| `created_at / started_at / finished_at` | 枢纽                                            | 按时间排序、跨会话归档                                  |
+| `tool / tool_version`                   | feature                                         | 详情页、排障                                            |
+| `argv_redacted`                         | feature                                         | 详情页展示"实际执行的命令"（脱敏版）                    |
+| `working_dir`                           | feature                                         | [打开输出位置] 的兜底锚点（Inherit 时取进程实际 cwd）   |
+| `output_paths`                          | feature（提交时已知）＋输出解析器（运行中回填） | 详情页 [打开目录]                                       |
+| `exit_code`                             | 枢纽                                            | —                                                       |
+| `log_path`                              | 枢纽                                            | 日志落盘（§4.5）                                        |
+| `intent`                                | feature                                         | 再次运行 / 基于此任务新建                               |
+| `progress`                              | 输出解析器                                      | 进度条（运行期内存态，不落库）                          |
 
 ```rust
 enum TaskIntent {
@@ -270,30 +270,134 @@ enum TaskIntent {
 
 **替代：依赖页对每个工具展示可复制的安装命令**（`winget install yt-dlp` / `brew install ffmpeg`）+ [重新检测] 按钮。与 §5 专家模式同一哲学：把命令亮给用户，执行交还用户。覆盖该诉求九成价值，实现成本接近零；装好后按 `system` 来源被探测到，天然享受包管理器自己的更新体系。
 
-## 8. UI / UX 原则
+## 8. 前端信息架构与 UI / UX
 
-- **渐进披露的前提在数据模型**：参数层级（常用/高级）标在参数注册表里，不是 UI 层"折叠一下"。表单只呈现高频参数，长尾走专家模式（§5）。
-- **代理**：默认读系统代理/环境变量（yt-dlp 原生识别 `HTTP_PROXY`），覆盖入口收敛为设置页的**全局代理**项（§7.2，deps 下载与各 feature 默认继承），feature 内代理框为逐任务覆盖。删除手把手教学向导，但不删机制——那是对接操作系统已有信息，不是照顾新手。
-- **错误分类学**：网络错 / 工具错 / 用户输入错三类的 UX 应对不同（建议重试 / 提示更新工具 / 指出错误字段），由 adapter 的输出解析器归类，取代现在的原始日志直出。
-- **任务页结构**：正在运行 → 排队中 → 本会话已结束 → 历史归档（按日期分组），四段是状态机 + 归档规则的直接投影。排队区 v1 提供 [置顶] / [取消]，拖拽排序为二期；两者语义均为全局队列顺序（§4.4 的跳过式调度使全局顺序始终有意义）。单列表 + 类别徽章，否决按池分泳道：队列常态只有两三个任务，泳道信息密度过低。
-- **池占用可视化**：任务项左边界按 feature 着色（颜色为冗余编码，徽章文字仍在，照顾色弱）；任务页头部以紧凑槽位指示器展示各池占用，如 `下载 ●●○ 2/3 · 处理 ●○○○ 1/4`。**用离散槽位点，否决连续容量条**：容量是 2、3 这类小整数，进度条式的"66% 已满"传达的是连续量，槽位点直接回答"几个在跑、还剩几个坑"。排队中的任务项可附一行等待原因（"等待下载池空位"）。占用数由前端从既有任务事件推导（统计 running 任务按池计数），后端仅需一次性暴露池定义（名称、容量），**不新增实时同步接口**。
-- **首页 = 状态 + 起点，不是宣传页。** 应用内不存在营销场景——看到首页的人已经装好了，宣传素材（动效演示等）归 README/项目主页。受众两类且诉求相反：首次用户要"能干嘛、环境行不行"，回访用户（绝大多数曝光）要"接着干活"，设计以每次启动都看为准绳。布局四区：
-  1. **环境状态条**（异常驱动）：全部就绪收敛为一行；有缺失时放大为横幅（"2 个工具未就绪 [一键安装] [详情]"）。首页只做信号，逐工具管理工作台（§7 deps UI）在独立页面。
-  2. **会话回顾条**：上次会话结果摘要（"2 成功 · 1 中断 [重跑]"），`interrupted` 任务在此二次曝光——首页对回访用户的主要价值，任务持久化的直接变现。
-  3. **功能卡片**：图标 + 一句话说明 + 点击进入。与被否决的现状导航卡的区别是**信息含量**：纯链接冗余于侧栏，带说明的卡片是首次用户的功能介绍。动效克制到 hover 反馈级别，尊重 prefers-reduced-motion；否决循环播放的演示动画（每次启动都看、很快成噪音，且 UI 迭代后素材即腐烂）。
-  4. **页脚链接**：使用手册 · 常见问题 · 项目主页 · 许可。
-- **Help 的归宿**：功能帮助长在各功能页的 Help 入口（§6 注册表生成参数总表 + 简短工作流说明 + 上游文档链接），4 个功能页各自维护；首页不设 Help 栏目（聚合复述 = 第二份真相，必腐烂），只留页脚链接。任务页/设置页界面自明，不配手册。
-- **设置页 = General + 各 feature 分栏**。General 收横切项：两池并发上限（下载池默认 3 / 处理池默认 CPU 核数）、全局代理（§7.2）、任务/日志保留（§4.5）、依赖来源偏好（§7.1）。feature 分栏收各自的长期默认值（如 network 的 Cookie 来源浏览器、bilibili 的默认画质）。**feature 设置的本质是参数注册表字段的默认值存储**：注册表定义字段、设置页存默认值、表单呈现当次值，三层各司其职——防止同一参数的默认值在注册表、设置页、表单初值三处各写一份。分界原则：每次任务都可能不同的参数留在表单，一次设定长期生效的进设置。
-- **启动固定进入首页**。否决"记住上次页面"：省一次点击的收益，换启动状态不可预测的成本；首页本身即"状态 + 起点"，正是启动时该看的东西。
-- **模板迁移**：TemplateManager 按 `featureKey` 存的 JSON 在字段重命名后会静默失效。重构时二选一：加 schema 版本号 + 迁移函数，或明确宣布清空旧模板。
-- **前端技术栈**（样板 feature 的第 0 项工作，随样板验证）：
-  - **组件与样式：Mantine（已定）**。决策依据：单人开发，以快速获得一致体面的 UI 为先，成品库自带设计系统、暗色主题与无障碍行为；Mantine 的通知系统、模态管理、表单、日期选择等工具型应用刚需组件覆盖面广，且 v7 起零运行时样式。曾定的 Tailwind + shadcn 方案作废：该路线控制力最大，但隐含"有精力与设计判断力打磨自有组件"的前提，与现状不符；两条路线都治愈全局 CSS 的失败模式（样式随组件走）。**纪律：单一体系，禁止与 Tailwind 混用**——两套样式/主题系统并存必然互搏。
-  - **不做应用内日志查看器**。任务详情提供 [打开日志文件] 与 [打开所在目录]（shell 打开，交给系统默认程序）。壳的原则同 §1："系统已经会的事（看文本文件），壳不做"。代价：正在写入的日志用外部编辑器打开不会自动刷新——可接受，running 任务的实时反馈由进度事件承担，原始日志的消费场景主要是事后诊断失败。**失败路径补齐（已定）**：任务失败时发应用内通知（Mantine notifications，含任务标题与简要原因，点击跳详情）；失败任务详情内联日志末尾 N 行（普通 `<pre>`，非查看器）+ [打开完整日志]，把"下载失败了为什么"的排查留在应用内。
-  - **虚拟列表：v1 不引入**。日志查看器取消后，全局长列表只剩两处：历史归档列表（15 天保留，量级数百）与音乐搜索结果列表（几十项量级）——均在普通 React 渲染的舒适区。实测出现卡顿再引入 TanStack Virtual（react-virtualized 的过时替代品不选），不预装。
-  - **动画：仅用 Mantine 自带**（Transition、Collapse 等），先实现基础功能再谈动画。复杂编排出现具体需求时再评估 motion（Framer Motion），二期。动画能力与组件库正交，不作为选库依据。
-  - **状态：Zustand 单一任务 store**。任务事件是推送型全局状态（任务页、首页回顾条、池指示器共读），Tauri 事件更新 store、各处订阅。否决 Redux（仪式过剩）与裸 Context（高频进度事件下重渲染失控）。查询类数据用普通 hooks 起步，不引第二个库。
-  - **目录结构**：`src/features/` 与后端 `features/` 镜像——feature 页面、表单分节、意图类型（Rust 结构体的 TS 镜像）同居一处，样板"复制文件夹"策略前后端对称。另设 `components/`（跨 feature 复用件：TaskCard、CommandPreview、池指示器、DirectoryInput）、`layouts/`（应用壳）、`stores/`、`lib/`。**视觉一致性由共享组件与主题 token 达成，不由目录结构达成**——feature 页之间共享的是组件，不是版式。
-  - **共存注意**：前端同样绞杀式迁移——新库只用于新建页面，旧页带 styles.css 活到各自迁移后删除。成品库样式基本作用域在自身组件内，对旧页全局侵入小于 Tailwind preflight，但样板期仍需目检旧页有无视觉偏移。
+### 8.1 导航与工作区
+
+**决策：采用 `Top L1 + 可选 Left L2 + Workspace`。** 操作系统原生标题栏保留；应用导航是原生标题栏下方的一条 WebView 工具栏，不把 React 控件伪装成系统菜单或窗口控制。
+
+顶栏使用不受左右内容宽度影响的三列布局 `1fr auto 1fr`：
+
+- 左侧：应用图标与 `MAD Toolbox`；
+- 中间：按 `Tasks → Bilibili → Network Video → Media → Music → Settings` 排列的 L1 纯图标导航；
+- 右侧：GitHub 等低频外部入口。公司品牌入口只有在提供正式 Logo 资产与目标 URL 后才加入，不使用占位素材。
+
+L1 图标必须有顶部 Tooltip（鼠标悬浮与键盘聚焦均可触发）、`aria-label`、`aria-current="page"`、明确的 active/focus 状态。后台搜索、未提交草稿和错误不能共用一个含义不明的圆点；如需状态提示，图标徽标与 Tooltip 必须表达具体状态。
+
+L2 只在确有并列工作流时出现：
+
+| L1            | L2                                                          | Workspace 规则                        |
+| ------------- | ----------------------------------------------------------- | ------------------------------------- |
+| Tasks         | 无                                                          | 全宽；承担启动页与跨 feature 状态入口 |
+| Bilibili      | 无                                                          | 全宽下载工作区                        |
+| Network Video | 无                                                          | 探测与下载属于同一工作流，不拆 L2     |
+| Media         | PR 智能兼容 / 转码 / 重新封装 / 流提取 / GIF / 图片与帧导出 | 左侧 L2；每页只展示该工作流需要的参数 |
+| Music         | 无                                                          | 搜索、结果选择与歌单作为同页内部模式  |
+| Settings      | General / Dependencies / About & Licenses                   | 左侧 L2                               |
+
+否决全局常驻左栏：Bilibili、Network、Music 与 Tasks 不需要 L2，空侧栏只会压缩工作区。壳使用稳定的 `WorkspaceFrame`，通过 `navigation` 插槽组合 L2；不能在两种父容器之间替换 Workspace，否则会卸载内部 Activity 缓存。取消全局 `maxWidth: 980px`；结果列表和任务页可以铺满，普通表单由页面自己限制可读宽度。
+
+Home route 删除，原职责按所有权迁移：
+
+- 任务回顾进入 Tasks，并在顶部 Tasks 图标展示准确计数；
+- 依赖异常进入 Settings / Dependencies，同时在受影响的功能页就地提示；
+- 版本、发行模式、平台、项目说明与许可进入 Settings / About & Licenses；
+- GitHub 进入顶栏右侧；
+- 功能入口卡片由 L1 导航取代，不保留第二套入口。
+
+启动 route 明确定义为 Tasks，不依赖导航数组第一项，也不恢复上次页面。任务提交后的导航与会话释放解耦：默认留在原工具页，以通知和 Tasks 徽标反馈；用户主动进入 Tasks 查看进度。Music 必须留在原页以连续创建多批下载任务。
+
+### 8.2 类型化路由
+
+当前平坦 `NavPage` 改为判别联合，使不合法的 L1/L2 组合无法通过编译：
+
+```ts
+type MediaPageId = "pr-compatible" | "transcode" | "remux" | "extract" | "gif" | "image-export";
+
+type SettingsPageId = "general" | "dependencies" | "about";
+
+type AppRoute =
+  | { section: "tasks" }
+  | { section: "bilibili" }
+  | { section: "network" }
+  | { section: "music" }
+  | { section: "media"; page: MediaPageId }
+  | { section: "settings"; page: SettingsPageId };
+```
+
+当前没有 URL、浏览器历史或 deep-link 需求，不引入 React Router。`navigateL1` 进入 Media/Settings 时恢复本次进程内最后访问的合法 L2；`navigateL2` 只能接受当前 L1 的页面 ID。Tasks 的“基于此任务新建”通过纯函数把 `TaskIntent` 映射到精确 route，Media 必须依据 `intent.data.operation` 进入对应 L2；若目标工作区已有未完成草稿，不得静默覆盖。
+
+### 8.3 工作区会话生命周期
+
+**决策：保护的是未完成的业务会话，不以 route 或 DOM 是否挂载充当业务真相。** 四个 Feature 工作区首次访问时才创建并挂载；之后导航只切换 `visible/background`。会话宿主独立于高频 Task store，至少记录 `generation`、`phase` 与待处理查询：
+
+```text
+pristine → editing → submitting ──成功返回 taskId/taskIds──→ releasable
+                  └──失败──────────────────────────────→ editing
+editing ──用户明确放弃────────────────────────────────→ releasable
+```
+
+- Bilibili、Network 与每个 Media L2：后端返回有效任务 ID 后才允许释放；预览、探测或登录成功不等于进入任务队列。
+- `releasable` 表示“离开时允许卸载”，不是让当前页面提交成功后瞬间消失。提交失败完整保留输入、专家命令、预览与错误。
+- 正在运行的扫码登录、格式探测等异步操作必须先结束、取消，或通过 generation token 保证旧结果不会写入新会话，页面才可淘汰。
+- 每个 Media L2 拥有独立的可变草稿；编码器能力、默认设置等只读数据可以共享。复用另一页输入应是显式动作，不能由共享可变字段暗中传播。
+- 会话只驻留当前应用进程。Cookie、Token、代理凭据等敏感字段不得为了恢复页面而写入 `localStorage` / `sessionStorage`。
+
+React 19.2 的 `<Activity>` 用于保留后台页面的 DOM 与本地状态，同时停止隐藏页面的 Effect；否决只用 `display: none`，因为它不会停止预览计时器、事件监听或 Portal。页面首次访问前不加载，避免用户从未进入 Media 时就探测 FFmpeg。所有 Modal、Menu 与 Tooltip 的打开状态仍须由 active route 限制，后台页面必须 `inert` / `aria-hidden`，焦点回到当前工作区。
+
+Music 搜索是例外状态机：
+
+```text
+idle → searching(jobId) → ready(sessionId) → enqueueing → ready（可重复）
+ready ──新搜索成功启动──→ searching(newJobId)
+ready ──结束本次搜索───→ releasable
+```
+
+- 一次 `musicdl_download` 入队后保留结果与后端 `sessionId`，允许继续选择其他结果；成功项应有明确标记，默认清空本次选择以避免误重复。
+- 修改关键词本身不释放旧结果；只有新搜索成功返回新 `jobId` 后才替代。新搜索启动失败时恢复旧会话。
+- “停止正在运行的搜索”与“结束已完成的结果会话”是两个操作。前者必须真正终止后端子进程，不能用卸载页面冒充取消。
+- Music 与 Bilibili 的全局 Tauri 事件各注册一次，写入常驻控制器或 store；不能依赖隐藏页面内部的 Effect 接收后台终态。
+- UI 释放不能立即删除 Music 会话文件；排队和运行中的下载任务仍可能引用 `results.pickle`，文件清理由后端在引用结束后延迟执行。
+
+### 8.4 前端目录与组件纪律
+
+```text
+src/
+├── main.tsx                       # src 根目录唯一 React 文件
+├── app/
+│   ├── App.tsx                    # 装配 provider、route 与页面
+│   ├── navigation.ts              # 纯导航数据
+│   └── route.ts                   # AppRoute 与任务→route 映射
+├── pages/
+│   ├── tasks/TasksPage.tsx
+│   ├── bilibili/BilibiliPage.tsx
+│   ├── network/NetworkVideoPage.tsx
+│   ├── media/                     # 六个显式 L2 page
+│   ├── music/MusicPage.tsx
+│   └── settings/                  # General / Dependencies / About
+├── components/                    # 所有非 page 视觉组件，单层放置
+├── contracts/                     # Tauri DTO / event 镜像
+├── stores/                        # task 与 workspace 分离
+├── hooks/
+├── lib/                           # 无 UI 的纯工具
+├── styles/                        # 全局样式与动画 keyframes，唯一自定义 CSS 位置
+└── assets/
+```
+
+- Page 是路由入口，只负责编排命名明确的原子组件；一个 `.tsx` 文件只公开一个具体组件或一个不可拆的紧密组件族。
+- 所有非 Page 的视觉组件（包括 TopNavigation、LeftNavigation、Workspace、导航项）统一放在 `components/`，不再设 `layouts/` 或前端 `features/`。
+- 组件名必须表达领域与职责，如 `MediaInputPicker`、`BilibiliDownloadOptions`；禁止脱离语境的 `Header`、`Section`、`Item`，也不为单个 Label/Input 制造包装组件。
+- API、form、template 与解析逻辑是非视觉代码，可与对应 `pages/<domain>/` 共置；Tauri command 名与载荷类型仍以 `contracts/` 为边界。避免 barrel export，使用可静态分析的直接 import。
+- Mantine 是唯一组件与主题体系；不混入第二套 CSS 框架。动画仅使用 Mantine 自带能力，长列表没有实测瓶颈前不引虚拟列表。
+
+### 8.5 其余产品规则
+
+- 渐进披露建立在参数语义上：常用字段直接展示，高级字段折叠，长尾参数进入专家模式（§5）。
+- 网络错、工具错、用户输入错分别给出重试、更新依赖、修正字段的提示；原始日志不是默认错误文案。
+- Tasks 保持单列表 + feature 徽章，按运行、排队、本会话终态、历史归档分段；池占用使用离散槽位而非连续进度条。
+- 设置页区分全局默认值与单次任务覆盖值。新 generation 才读取最新默认值，Settings 更新不能静默改写正在编辑的草稿。
+- 模板字段改名必须有 schema 版本与迁移，或明确清空旧版本；不能静默读取成半有效状态。
+- 不做应用内完整日志查看器；失败详情显示末尾若干行并提供打开完整日志/所在目录。
 
 ## 9. 进程生命周期（Windows 优先）
 
@@ -303,29 +407,29 @@ enum TaskIntent {
 
 ## 10. 未定案清单
 
-| 事项                                                                                                                        | 现状                                                    |
-| --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| 首页万能粘贴框（粘贴 URL 智能分发到对应功能页并预填）                                                                       | 二期（已确认）                                          |
-| tauri-specta 类型自动生成                                                                                                   | 接口稳定后评估；v1 先手写 TS 镜像类型                   |
-| 拖拽排序                                                                                                                    | 二期（已确认）                                          |
-| BBDown.data（登录态）常驻 exe 目录，与未来 `tools/<tool>/<version>/` 版本化目录冲突：版本翻转时登录态遗留在旧目录被静默丢失 | deps 阶段修——登录态迁至应用数据目录并让 BBDown 指向它   |
-| BBDown 进度解析（百分比/速度 → `TaskEvent::Progress`）                                                                      | 样板后接入；解析器接口（`LineParser`）与事件通路已就绪  |
-| musicdl 请求结构/会话辅助（musicdl_python 等）仍在 lib.rs（命令已归位 features/music）                                      | 随 deps 阶段一并归位（工具解析本属 deps 域）            |
-| job-state 事件通道仅服务扫码登录与 musicdl 搜索                                                                             | 两者迁入结构化事件后即可退役；无人消费的 job-log 已删除 |
-| 远程 manifest 拉取、Gitee 镜像、驱动系统包管理器、musicdl 的 managed 化                                                     | 均为二期候选                                            |
+| 事项                                                      | 现状                                            |
+| --------------------------------------------------------- | ----------------------------------------------- |
+| 全局智能粘贴入口（URL 分发并预填目标工作区）              | 二期；Home 已删除，未来若实现应成为显式全局动作 |
+| 公司宣传 Logo 与目标 URL                                  | 等待正式品牌资产；顶栏不使用占位图              |
+| tauri-specta 类型自动生成                                 | 接口稳定后评估；v1 手写 TS 镜像                 |
+| 拖拽排序                                                  | 二期（已确认）                                  |
+| BBDown 登录态与未来 managed 工具版本目录冲突              | deps 阶段迁至稳定应用数据目录                   |
+| BBDown 进度解析                                           | `LineParser` 与事件通路已就绪，解析规则待接入   |
+| 远程 manifest、镜像、系统包管理器驱动、musicdl managed 化 | 二期候选                                        |
 
 ## 11. 实施顺序
 
-1. **契约先行**：各 feature 的意图结构体 + TaskEnvelope + 状态机。这是其余一切的地基。
-2. **骨架**：core/features 目录切分，`lib.rs` 瘦身为装配；musicdl 旁路并入任务系统。
-3. **core/task**：状态机、并发池、SQLite 持久化、启动对账。
-4. **core/deps**：manifest 与 managed 来源。
-5. **UI 改版**：参数分级表单、命令预览/专家模式、新任务页。UI 依赖参数注册表的数据模型，故最后动。
+当前后端主作业链（结构化意图 → adapter → TaskHub → process/store/event）已经成立，但模块归位和前端信息架构仍未完成。后续按下列可独立验证的阶段推进，机械移动与行为变化不混在同一阶段：
 
-**迁移策略：绞杀式，不重写。** 先立 core/task 骨架、旧 command 包装其上保持可用；以 bilibili 为第一个端到端样板 feature（意图 → adapter → 任务 → UI 全链路），其余三页继续跑旧代码，验证模式成立后照样板复制、旧代码随迁移逐步删除。
+1. **基线清理与契约盘点**：删除原测试代码及纯测试依赖/fixture；清理运行产物；统一跨平台 npm 脚本；核对前端调用与后端注册的 command/event。该阶段已完成，后续不得借重构恢复任意 argv 或双轨事件。
+2. **文档冻结**：将 Top L1、可选 L2、Home 职责迁移、目录纪律和会话生命周期写入本文档；以本节而非旧 UI 作为验收基线。
+3. **纯目录迁移**：`App.tsx → app/App.tsx`，页面迁入 `pages/<domain>/`，视觉组件统一到 `components/`，删除 `V2` 与 `layouts/features` 过渡命名；只改路径和 import，保证行为等价。
+4. **类型化路由与新壳**：建立 `AppRoute`、TopNavigation、带可选导航插槽的稳定 WorkspaceFrame；恢复全平台原生标题栏；删除 Home route 和永久侧栏前先完成职责迁移。
+5. **会话宿主**：四个 Feature 首次访问后缓存；普通页面按入队结果进入 releasable；Tauri 全局事件改单例订阅；处理后台 Portal、焦点和敏感字段。Music 先完成可重复入队，再增加真实搜索取消与显式结束会话。
+6. **Media 拆页**：先修正批量提交的部分入队语义，再按六个 L2 工作流拆分；每个 L2 草稿独立，九种后端 operation 均有唯一入口，重跑进入精确页面。
+7. **页面原子化**：按 Bilibili、Network、Music、Tasks/Settings 分域拆小提交；Page 只编排，组件使用领域+职责命名，不制造万能 FormSection 或布尔模式组件。
+8. **后端边界收尾**：`core/redaction`、`core/deps`、`core/settings` 先断开 feature/core 对 crate root 的反向依赖；Bilibili login、Media query/策略、Music runtime 归回各域；TaskHub commands 归 core/task，淘汰旧状态/事件；最终 `lib.rs` 只保留模块声明、插件/State 装配、handler 列表和 `run()`。
+9. **依赖管理**：在模块边界稳定后实现 §7 的 managed 工具、manifest、更新和代理策略，不与 UI 目录迁移并行混改。
+10. **完成审计**：逐项核对 command/event、历史 `TaskIntent`、四域提交/重跑/取消、Music 多批下载、Media 全 operation、Settings/Home 职责迁移、Full/Lite 与 Windows/macOS 原生窗口行为；运行 TypeScript、Vite、Cargo 和打包配置检查。项目按要求不保留自动测试，因此不能以“测试绿色”代替这些契约与手动主路径验证。
 
-**前端界面重构完成（2026-08-13 晚）**：应用壳（侧栏）、首页（§8 四区落地）、设置、许可、音乐五处全部 Mantine 化；styles.css 与旧组件（CommandBar/Field/DirectoryInput/TemplateManager）删除，全局 CSS 的失败模式就此终结。主题：跟随系统明暗（不强制暗色）、teal 主色、@tabler/icons-react 图标。music 模板 v2 剔除 cookies/-i/-r 三个凭证类字段。
-
-**迁移状态（2026-08-13）**：样板验证后主要作业链路已完成迁移——bilibili / network / media 三个 feature 走新通路（意图 → adapter → core/task → Mantine 页面），music 的下载/歌单作业已进任务系统；旧 `run_tool`、前端 argv 拼装（buildBilibiliArgs/buildYtDlpArgs/buildFfmpegArgs）、旧四页（bilibili/network/media/streams/tasks）已删除。落地时的两个设计决定：媒体转换与封装抽流双入口合并为单页多操作（§0 批评的冗余导航就此消失）；yt-dlp 浏览器 Cookie 兜底以"解析器信号 + 失败顾问"机制落地（枢纽持机制、adapter 持知识，重试至多一次）。模块边界与旧查询通道仍待收尾，见 §10。
-
-**选 bilibili 当样板的理由：契约面覆盖最全。** 试点的价值与它压过的契约面成正比——扫码登录考验事件通道自定义载荷（§4.2），cookie/token 考验脱敏（§4.5），40+ 参数考验注册表与分级表单在真实规模下是否成立（§5/§6），下载考验 download 池与进度解析（§4.4）。模式在最难的功能上成立，其余三个即为体力活；先做简单功能则把设计风险留到最后才引爆。样板完成的标志：① B 站全流程（含登录/取消/重跑/历史）在新链路可用；② 沉淀供其余 feature 复制的结构与写法清单；③ 实施中发现的文档错漏回写本文档。
+**迁移策略仍为绞杀式，但“过渡态可运行”不等于“重构完成”。** 每一阶段结束即删除该阶段产生的旧入口与兼容壳；不同时保留两套导航、两套事件或两套状态真相源。

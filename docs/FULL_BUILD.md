@@ -41,10 +41,11 @@ follows BBDown's official web endpoints, reads the complete Cookie fields from
 the poll response, validates the account, and writes the same native
 `BBDown.data` format. Normal downloads invoke BBDown unchanged.
 
-The Windows tool pack is pinned in `third_party/windows-sources.json`. Run
-`scripts/prepare-windows-tools.ps1 -Edition Full` to download missing official
-artifacts and verify archive and binary hashes, then run
-`scripts/verify-windows-tools.ps1 -Edition Full` before packaging. The exact
+The Windows tool pack is pinned in `third_party/windows-sources.json`.
+`scripts/build/windows-tools.ps1 -Edition Full` downloads missing official
+artifacts and verifies archive and binary hashes; the build entry
+(`npm run tauri:build:full`, which dispatches to `scripts/build/windows.ps1`)
+runs it automatically before packaging. The exact
 FFmpeg source revision and BtbN build-recipe snapshot under
 `third_party/source_archives/` are copied into the Windows installer.
 

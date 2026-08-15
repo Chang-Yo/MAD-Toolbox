@@ -132,6 +132,7 @@ fn plan_form(intent: &BilibiliIntent) -> Result<AdapterPlan, AdapterError> {
     }
 
     let argv_redacted = redact_argv(&argv);
+    let output_paths = known_output_dir(&intent.output_directory);
     Ok(AdapterPlan {
         tool: "bbdown",
         title: title_for(intent.mode, url),
@@ -139,6 +140,7 @@ fn plan_form(intent: &BilibiliIntent) -> Result<AdapterPlan, AdapterError> {
         argv_redacted,
         pool: Pool::Download,
         cwd: CwdPolicy::ExeDir,
+        output_paths,
     })
 }
 
@@ -158,7 +160,18 @@ fn plan_manual(argv: &[String]) -> Result<AdapterPlan, AdapterError> {
         argv_redacted,
         pool: Pool::Download,
         cwd: CwdPolicy::ExeDir,
+        output_paths: Vec::new(),
     })
+}
+
+/// --work-dir 指定的下载目录（提交时已知；精确文件名要等输出解析器接入）。
+fn known_output_dir(directory: &str) -> Vec<String> {
+    let trimmed = directory.trim();
+    if trimmed.is_empty() {
+        Vec::new()
+    } else {
+        vec![trimmed.to_string()]
+    }
 }
 
 fn title_for(mode: Mode, url: &str) -> String {

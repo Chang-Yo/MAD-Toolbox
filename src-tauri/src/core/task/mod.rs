@@ -6,6 +6,7 @@
 //! 纪律（§4.2）：枢纽不解开 intent、不解析工具 stdout——进度/输出路径/自定义事件
 //! 由 feature 随 TaskSpec 附带的解析器产出，枢纽只转发。
 
+pub mod commands;
 pub mod logfile;
 pub mod scheduler;
 pub mod sink;
@@ -80,11 +81,36 @@ pub struct TaskSpec {
     pub argv_redacted: Vec<String>,
     pub cwd: Option<PathBuf>,
     pub env_path: Option<OsString>,
+    /// 提交时已知的输出位置（feature 侧知识）；运行中解析器发现的路径会追加进来。
+    pub output_paths: Vec<String>,
     /// 已脱敏的意图（feature 侧负责 sanitize——落库前置条件，§4.5）。
     pub intent: TaskIntent,
     pub parser: Option<LineParser>,
     /// 失败重试顾问（可选）：知识在 adapter，机制在枢纽。
     pub on_failure: Option<FailureAdvisor>,
+    /// 任务独占的临时目录；排队取消、启动失败、进程终态或枢纽关闭时自动清理。
+    pub cleanup_dir: Option<PathBuf>,
+}
+
+fn remove_cleanup_dir(path: &std::path::Path) {
+    let Ok(metadata) = std::fs::symlink_metadata(path) else {
+        return;
+    };
+    if metadata.file_type().is_symlink() || metadata.is_file() {
+        let _ = std::fs::remove_file(path);
+    } else if metadata.is_dir() {
+        let _ = std::fs::remove_dir_all(path);
+    }
+}
+
+struct CleanupDir(Option<PathBuf>);
+
+impl Drop for CleanupDir {
+    fn drop(&mut self) {
+        if let Some(path) = self.0.take() {
+            remove_cleanup_dir(&path);
+        }
+    }
 }
 
 enum HubMsg {
@@ -100,6 +126,10 @@ enum HubMsg {
     },
     Snapshot {
         reply: oneshot::Sender<Vec<TaskEnvelope>>,
+    },
+    Delete {
+        ids: Vec<String>,
+        reply: oneshot::Sender<Vec<String>>,
     },
     Line {
         id: String,
@@ -146,10 +176,19 @@ impl TaskHub {
     /// 提交任务，立即返回任务 id（排队与执行异步进行）。
     pub fn submit(&self, spec: TaskSpec) -> String {
         let id = uuid::Uuid::new_v4().to_string();
-        let _ = self.tx.send(HubMsg::Submit {
-            id: id.clone(),
-            spec: Box::new(spec),
-        });
+        let cleanup_dir = spec.cleanup_dir.clone();
+        if self
+            .tx
+            .send(HubMsg::Submit {
+                id: id.clone(),
+                spec: Box::new(spec),
+            })
+            .is_err()
+        {
+            if let Some(path) = cleanup_dir {
+                remove_cleanup_dir(&path);
+            }
+        }
         id
     }
 
@@ -168,6 +207,15 @@ impl TaskHub {
         let _ = self.tx.send(HubMsg::Snapshot { reply });
         rx.await.unwrap_or_default()
     }
+
+    /// 删除终态任务（信封 + 日志文件）；返回实际删除的 id，活动任务被跳过。
+    pub async fn delete(&self, ids: Vec<String>) -> Vec<String> {
+        let (reply, rx) = oneshot::channel();
+        if self.tx.send(HubMsg::Delete { ids, reply }).is_err() {
+            return Vec::new();
+        }
+        rx.await.unwrap_or_default()
+    }
 }
 
 struct RunningTask {
@@ -183,6 +231,7 @@ struct RunningTask {
     signals: Vec<String>,
     /// 已重试过（至多一次的闸）。
     retried: bool,
+    _cleanup_dir: CleanupDir,
 }
 
 struct HubState {
@@ -207,6 +256,7 @@ struct PendingSpec {
     env_path: Option<OsString>,
     parser: Option<LineParser>,
     on_failure: Option<FailureAdvisor>,
+    cleanup_dir: CleanupDir,
 }
 
 /// spawn 子进程并拉起流读取 runner：全部行经 Line 消息回流枢纽，
@@ -292,6 +342,9 @@ async fn hub_loop(
             HubMsg::Snapshot { reply } => {
                 let _ = reply.send(st.snapshot());
             }
+            HubMsg::Delete { ids, reply } => {
+                let _ = reply.send(st.handle_delete(ids));
+            }
         }
     }
 }
@@ -316,8 +369,17 @@ impl HubState {
             tool: spec.tool,
             tool_version: spec.tool_version,
             argv_redacted: spec.argv_redacted,
-            working_dir: spec.cwd.as_ref().map(|p| p.to_string_lossy().into_owned()),
-            output_paths: Vec::new(),
+            // Inherit（cwd=None）时的真实落盘位置是进程 cwd，作为"打开输出位置"的兜底锚点
+            working_dir: spec
+                .cwd
+                .as_ref()
+                .map(|p| p.to_string_lossy().into_owned())
+                .or_else(|| {
+                    std::env::current_dir()
+                        .ok()
+                        .map(|p| p.to_string_lossy().into_owned())
+                }),
+            output_paths: spec.output_paths,
             exit_code: None,
             log_path: None,
             intent: spec.intent,
@@ -332,6 +394,7 @@ impl HubState {
                 env_path: spec.env_path,
                 parser: spec.parser,
                 on_failure: spec.on_failure,
+                cleanup_dir: CleanupDir(spec.cleanup_dir),
             },
         );
         self.queue.push(id);
@@ -415,6 +478,7 @@ impl HubState {
                         env_path: pending.env_path,
                         signals: Vec::new(),
                         retried: false,
+                        _cleanup_dir: pending.cleanup_dir,
                     },
                 );
                 self.persist_and_emit(envelope);
@@ -468,6 +532,35 @@ impl HubState {
         }
     }
 
+    /// 删除终态任务：活动任务（queued/running/canceling）不可删——先取消再删。
+    /// 终态任务不可能再出现在队列/运行表，删除即信封出内存 + 落库删除 + 日志文件清理。
+    fn handle_delete(&mut self, ids: Vec<String>) -> Vec<String> {
+        let mut deleted = Vec::new();
+        for id in ids {
+            let Some(envelope) = self.envelopes.get(&id) else {
+                continue;
+            };
+            if !matches!(
+                envelope.status,
+                TaskStatus::Success
+                    | TaskStatus::Failed
+                    | TaskStatus::Canceled
+                    | TaskStatus::Interrupted
+            ) {
+                continue;
+            }
+            if let Some(log_path) = &envelope.log_path {
+                let _ = std::fs::remove_file(log_path);
+            }
+            if self.store.delete(&id).is_ok() {
+                self.seqs.remove(&id);
+                self.envelopes.remove(&id);
+                deleted.push(id);
+            }
+        }
+        deleted
+    }
+
     fn next_seq(&mut self, id: &str) -> u64 {
         let seq = self.seqs.entry(id.to_string()).or_insert(0);
         *seq += 1;
@@ -476,7 +569,7 @@ impl HubState {
 
     fn handle_line(&mut self, id: &str, stream: LogStream, line: &str) {
         // 脱敏是持久化与展示的前置条件（§4.5）：日志文件与事件一律用脱敏行
-        let redacted = crate::redact_output_line(line);
+        let redacted = super::redaction::redact_output_line(line);
 
         // 解析器消费原始行（进度数字等不受脱敏影响）；信号收集后统一应用，避免借用交叠
         let mut signals: Vec<ParsedSignal> = Vec::new();

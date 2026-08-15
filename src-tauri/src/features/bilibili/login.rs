@@ -1,8 +1,7 @@
 //! bilibili 原生扫码登录（自 lib.rs 回迁）。
 //! 注意：这不是 spawn BBDown 进程——QR 生成/轮询/凭证校验是 Rust 原生 reqwest 流，
 //! QR 以 SVG dataUrl 经事件推送（架构文档 §4.2 扩展点的实际形态）。
-//! 事件编排层（run_bbdown_login / spawn_bbdown_login_job）仍在 lib.rs，调用本模块。
-//! BBDown.data 写入路径保持为参数，为 deps 阶段“登录态迁出 exe 目录”铺路。
+//! BBDown.data 按原 CLI 语义保存在随应用附带的 BBDown 可执行文件目录。
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use qrcode::QrCode;
@@ -10,15 +9,21 @@ use reqwest::{
     header::{COOKIE, REFERER},
     Client, Url,
 };
+use serde::Serialize;
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use tauri::{AppHandle, Emitter};
+use tokio::time::{sleep, Duration};
 use uuid::Uuid;
+
+use crate::core::deps::ToolName;
+use crate::core::query::{JobState, RunResult};
 
 const BBDOWN_QR_GENERATE_URL: &str =
     "https://passport.bilibili.com/x/passport-login/web/qrcode/generate?source=main-fe-header";
 const BBDOWN_QR_POLL_URL: &str = "https://passport.bilibili.com/x/passport-login/web/qrcode/poll";
 const BILIBILI_NAV_URL: &str = "https://api.bilibili.com/x/web-interface/nav";
-pub(crate) const BBDOWN_USER_AGENT: &str =
+const BBDOWN_USER_AGENT: &str =
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 const BBDOWN_COOKIE_KEYS: [&str; 7] = [
     "SESSDATA",
@@ -38,13 +43,13 @@ fn merge_cookie_fields(target: &mut HashMap<String, String>, source: HashMap<Str
     }
 }
 
-pub(crate) fn has_required_bbdown_cookie(fields: &HashMap<String, String>) -> bool {
+fn has_required_bbdown_cookie(fields: &HashMap<String, String>) -> bool {
     ["SESSDATA", "bili_jct", "DedeUserID"]
         .iter()
         .all(|key| fields.get(*key).is_some_and(|value| !value.is_empty()))
 }
 
-pub(crate) fn cookie_header(fields: &HashMap<String, String>) -> String {
+fn cookie_header(fields: &HashMap<String, String>) -> String {
     BBDOWN_COOKIE_KEYS
         .iter()
         .filter_map(|key| {
@@ -109,7 +114,7 @@ fn save_bbdown_data(data_path: &Path, completed: &str) -> Result<(), String> {
     Ok(())
 }
 
-pub(crate) async fn validate_and_save_bbdown_data(
+async fn validate_and_save_bbdown_data(
     client: &Client,
     data_path: &Path,
     cookies: &HashMap<String, String>,
@@ -122,7 +127,7 @@ pub(crate) async fn validate_and_save_bbdown_data(
     save_bbdown_data(data_path, &completed)
 }
 
-pub(crate) async fn generate_bbdown_qr(client: &Client) -> Result<(String, String), String> {
+async fn generate_bbdown_qr(client: &Client) -> Result<(String, String), String> {
     let response = client
         .get(BBDOWN_QR_GENERATE_URL)
         .header(REFERER, "https://www.bilibili.com/")
@@ -157,7 +162,7 @@ pub(crate) async fn generate_bbdown_qr(client: &Client) -> Result<(String, Strin
     Ok((url.to_string(), qrcode_key.to_string()))
 }
 
-pub(crate) fn bbdown_qr_data_url(url: &str) -> Result<String, String> {
+fn bbdown_qr_data_url(url: &str) -> Result<String, String> {
     let code =
         QrCode::new(url.as_bytes()).map_err(|error| format!("生成登录二维码失败：{error}"))?;
     let svg = code
@@ -170,7 +175,7 @@ pub(crate) fn bbdown_qr_data_url(url: &str) -> Result<String, String> {
     ))
 }
 
-pub(crate) async fn poll_bbdown_qr(
+async fn poll_bbdown_qr(
     client: &Client,
     qrcode_key: &str,
 ) -> Result<(i64, HashMap<String, String>, Option<String>), String> {
@@ -220,4 +225,120 @@ pub(crate) async fn poll_bbdown_qr(
         merge_cookie_url(&mut cookies, value);
     }
     Ok((code, cookies, url))
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LoginQr {
+    job_id: String,
+    data_url: String,
+}
+
+/// BBDown 的 `Program.APP_DIR` 就是可执行文件目录；登录与下载必须共享这里的
+/// `BBDown.data`、config、archive 等原生状态文件。
+pub(crate) fn bbdown_directory(executable: &Path) -> Result<PathBuf, String> {
+    executable
+        .parent()
+        .map(Path::to_path_buf)
+        .ok_or_else(|| "无法确定 BBDown 所在目录".to_string())
+}
+
+#[derive(Debug)]
+enum BbdownLoginError {
+    Failed(String),
+}
+
+async fn run_bbdown_login(
+    app: &AppHandle,
+    job_id: &str,
+    data_path: &Path,
+) -> Result<(), BbdownLoginError> {
+    let client = Client::builder()
+        .user_agent(BBDOWN_USER_AGENT)
+        .build()
+        .map_err(|error| BbdownLoginError::Failed(format!("初始化 B站登录请求失败：{error}")))?;
+
+    let (url, qrcode_key) = generate_bbdown_qr(&client)
+        .await
+        .map_err(BbdownLoginError::Failed)?;
+    let data_url = bbdown_qr_data_url(&url).map_err(BbdownLoginError::Failed)?;
+    let _ = app.emit(
+        "bbdown-login-qr",
+        LoginQr {
+            job_id: job_id.to_string(),
+            data_url,
+        },
+    );
+    for _ in 0..180 {
+        sleep(Duration::from_secs(1)).await;
+        let (status, cookies, _url) = poll_bbdown_qr(&client, &qrcode_key)
+            .await
+            .map_err(BbdownLoginError::Failed)?;
+        match status {
+            86101 | 86090 => {}
+            86038 => {
+                return Err(BbdownLoginError::Failed("二维码已过期，请重新扫码".into()));
+            }
+            0 => {
+                validate_and_save_bbdown_data(&client, data_path, &cookies)
+                    .await
+                    .map_err(BbdownLoginError::Failed)?;
+                return Ok(());
+            }
+            other => {
+                return Err(BbdownLoginError::Failed(format!(
+                    "B站登录失败，二维码状态码 {other}"
+                )));
+            }
+        }
+    }
+    Err(BbdownLoginError::Failed("二维码登录超时".into()))
+}
+
+pub(crate) async fn spawn_bbdown_login_job(
+    app: AppHandle,
+    working_dir: PathBuf,
+) -> Result<RunResult, String> {
+    std::fs::create_dir_all(&working_dir).map_err(|error| error.to_string())?;
+    let data_path = working_dir.join("BBDown.data");
+    let _ = std::fs::remove_file(working_dir.join("qrcode.png"));
+    let job_id = Uuid::new_v4().to_string();
+    let tool = ToolName::Bbdown;
+    let _ = app.emit(
+        "job-state",
+        JobState {
+            job_id: job_id.clone(),
+            tool: tool.clone(),
+            state: "running",
+            exit_code: None,
+            message: "BBDown 正在运行".into(),
+        },
+    );
+
+    let task_app = app.clone();
+    let task_job_id = job_id.clone();
+    tauri::async_runtime::spawn(async move {
+        let outcome = run_bbdown_login(&task_app, &task_job_id, &data_path).await;
+        let (state_name, exit_code, message) = match outcome {
+            Ok(()) => (
+                "completed",
+                Some(0),
+                "BBDown Cookie 数据已补全并验证登录成功".to_string(),
+            ),
+            Err(BbdownLoginError::Failed(error)) => {
+                ("failed", None, format!("BBDown 账号未登录：{error}"))
+            }
+        };
+        let _ = task_app.emit(
+            "job-state",
+            JobState {
+                job_id: task_job_id,
+                tool: ToolName::Bbdown,
+                state: state_name,
+                exit_code,
+                message,
+            },
+        );
+    });
+    Ok(RunResult { job_id })
 }

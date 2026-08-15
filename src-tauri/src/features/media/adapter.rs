@@ -6,6 +6,8 @@
 use super::types::{MediaIntent, Operation};
 use crate::core::adapter::AdapterPlan;
 use crate::core::task::types::{CwdPolicy, Pool, TaskIntent};
+
+use super::policy;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -51,6 +53,7 @@ pub fn plan(intent: &TaskIntent, ctx: &MediaCtx) -> Result<AdapterPlan, AdapterE
                 argv,
                 pool: Pool::Local,
                 cwd: CwdPolicy::Inherit,
+                output_paths: Vec::new(),
             })
         }
     }
@@ -67,6 +70,15 @@ fn plan_form(form: &MediaIntent, ctx: &MediaCtx) -> Result<AdapterPlan, AdapterE
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_else(|| input.to_string());
+    let output_paths = if form.operation == Operation::Frames {
+        // 抽帧输出是 %06d 序列模板而非真实文件，锚定到输出目录
+        Path::new(&output)
+            .parent()
+            .map(|p| vec![p.to_string_lossy().into_owned()])
+            .unwrap_or_default()
+    } else {
+        vec![output.clone()]
+    };
     Ok(AdapterPlan {
         tool: "ffmpeg",
         title: format!("{} {}", operation_verb(form.operation), file_name),
@@ -74,6 +86,7 @@ fn plan_form(form: &MediaIntent, ctx: &MediaCtx) -> Result<AdapterPlan, AdapterE
         argv,
         pool: Pool::Local,
         cwd: CwdPolicy::Inherit,
+        output_paths,
     })
 }
 
@@ -149,6 +162,8 @@ fn build_argv(input: &str, output: &str, form: &MediaIntent, ctx: &MediaCtx) -> 
         }
     };
 
+    // 过滤冗余输出：banner/stats 是纯噪声，日志只留 warning 及以上
+    push(&["-hide_banner", "-nostats", "-loglevel", "warning"]);
     push(&[if form.overwrite { "-y" } else { "-n" }]);
     let start_time = form.start_time.trim();
     if !start_time.is_empty() {
@@ -455,7 +470,7 @@ pub fn pr_plan(
         ));
     }
 
-    let lossless_audio = audio_only && crate::is_lossless_audio(&probe.audio);
+    let lossless_audio = audio_only && policy::is_lossless_audio(&probe.audio);
     let mov_video_copy = probe.video.iter().all(|codec| {
         ["h264", "hevc", "prores", "dnxhd", "dvvideo", "mpeg2video"].contains(&codec.as_str())
     });
@@ -477,13 +492,17 @@ pub fn pr_plan(
     let container = if subtitle_only {
         "srt"
     } else if audio_only {
-        crate::pr_audio_container(&probe.audio)
+        policy::audio_container(&probe.audio)
     } else {
-        crate::pr_container(&probe.video, false)
+        policy::container(&probe.video, false)
     };
-    let output = crate::pr_output_path(input, output_directory, container);
+    let output = policy::output_path(input, output_directory, container);
 
     let mut args: Vec<String> = vec![
+        "-hide_banner".into(),
+        "-nostats".into(),
+        "-loglevel".into(),
+        "warning".into(),
         "-n".into(),
         "-i".into(),
         input.to_string_lossy().into_owned(),
@@ -557,6 +576,7 @@ pub fn pr_plan(
         argv: args,
         pool: Pool::Local,
         cwd: CwdPolicy::Inherit,
+        output_paths: vec![output.to_string_lossy().into_owned()],
     };
     Ok((plan, output))
 }

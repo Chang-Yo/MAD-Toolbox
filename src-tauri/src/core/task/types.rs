@@ -132,4 +132,7 @@ pub enum CwdPolicy {
     Inherit,
     /// 强制为工具可执行文件所在目录（BBDown：BBDown.data/配置/存档须与 exe 同目录）。
     ExeDir,
+    /// 显式目录：下载类工具的输出目录。产物落点即工作目录，
+    /// 落入信封 working_dir 后同时作为任务卡"打开输出位置"的锚点。
+    Explicit(String),
 }

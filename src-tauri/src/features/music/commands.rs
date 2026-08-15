@@ -2,28 +2,45 @@
 //! - 搜索 = 查询（§4.1）：结果经 musicdl-search-result 事件流式回填页面，自带 30 分钟超时，
 //!   完成信号沿用 job-state 事件；
 //! - 下载/歌单 = 作业：产出 TaskSpec 进任务系统。
-//! python/musicdl 解析辅助（musicdl_python 等）留在 lib.rs——工具解析属未来 deps 域。
 
-use std::process::Stdio;
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 
+use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::sync::oneshot;
 use tokio::time::sleep;
 use uuid::Uuid;
 
+use super::sessions::{self, MusicSearchRegistry, PreparedSessionDir};
+use super::types::{
+    MusicdlAdapterOutput, MusicdlPlaylistRequest, MusicdlPreviewRequest, MusicdlSearchRequest,
+    MusicdlSearchResponse,
+};
+use super::{cli, runtime};
+use crate::core::deps::{command_path, musicdl_python, resolve_tool, ToolName};
+use crate::core::process::spawn_tree;
+use crate::core::query::{JobState, RunResult};
 use crate::core::task::types::{Feature, Pool, TaskIntent};
 use crate::core::task::{TaskHub, TaskSpec};
-use crate::{
-    background_command, command_path, musicdl_adapter, musicdl_python, musicdl_sessions_dir,
-    resolve_tool, JobState, MusicdlAdapterOutput, MusicdlPlaylistRequest, MusicdlSearchRequest,
-    MusicdlSearchResponse, RunResult, ToolName,
-};
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct TaskSubmitResult {
+    task_id: String,
+}
+
+/// 返回的是等效 musicdl CLI 展示文本，不是 Python adapter 的内部 argv。
+#[tauri::command]
+pub(crate) fn musicdl_preview(request: MusicdlPreviewRequest) -> Result<String, String> {
+    cli::equivalent_preview(&request)
+}
 
 #[tauri::command]
 pub(crate) async fn musicdl_search(
     app: AppHandle,
+    registry: State<'_, MusicSearchRegistry>,
     mut request: MusicdlSearchRequest,
 ) -> Result<RunResult, String> {
     request.keyword = request.keyword.trim().to_string();
@@ -74,12 +91,11 @@ pub(crate) async fn musicdl_search(
     let (musicdl, _) = resolve_tool(&app, &ToolName::Musicdl)
         .ok_or_else(|| "未安装 musicdl，请先按照页面提示安装".to_string())?;
     let python = musicdl_python(&musicdl)?;
-    let adapter = musicdl_adapter(&app)?;
+    let adapter = runtime::adapter_path(&app)?;
     let session_id = Uuid::new_v4().to_string();
-    let session_directory = musicdl_sessions_dir(&app)?.join(&session_id);
-    std::fs::create_dir_all(&session_directory).map_err(|error| error.to_string())?;
-    let request_path = session_directory.join("request.json");
-    let state_path = session_directory.join("results.pickle");
+    let session_directory = PreparedSessionDir::search(&app, &session_id)?;
+    let request_path = session_directory.path().join("request.json");
+    let state_path = session_directory.path().join("results.pickle");
     let bytes = serde_json::to_vec(&request).map_err(|error| error.to_string())?;
     std::fs::write(&request_path, bytes).map_err(|error| error.to_string())?;
     #[cfg(unix)]
@@ -89,20 +105,19 @@ pub(crate) async fn musicdl_search(
             .map_err(|error| error.to_string())?;
     }
 
-    let mut child = background_command(python)
-        .arg(adapter)
-        .arg("search")
-        .arg(&request_path)
-        .arg(&state_path)
-        .env("PATH", command_path())
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .kill_on_drop(true)
-        .spawn()
+    let argv = vec![
+        adapter.to_string_lossy().into_owned(),
+        "search".into(),
+        request_path.to_string_lossy().into_owned(),
+        state_path.to_string_lossy().into_owned(),
+    ];
+    let env_path = command_path();
+    let mut child = spawn_tree(&python, &argv, None, Some(&env_path))
         .map_err(|error| format!("无法启动 musicdl 搜索：{error}"))?;
-    let stdout = child.stdout.take();
-    let stderr = child.stderr.take();
+    let stdout = child.take_stdout();
+    let stderr = child.take_stderr();
+    let timeout_killer = child.killer();
+    let cancel_requested = registry.register(session_id.clone(), child.killer());
     let source_count = request.music_sources.len();
     let _ = app.emit(
         "job-state",
@@ -117,6 +132,7 @@ pub(crate) async fn musicdl_search(
 
     let task_app = app.clone();
     let task_job_id = session_id.clone();
+    let task_registry = registry.inner().clone();
     tauri::async_runtime::spawn(async move {
         let (payload_tx, payload_rx) = oneshot::channel::<MusicdlAdapterOutput>();
         let stdout_task = stdout.map(|stdout| {
@@ -139,7 +155,7 @@ pub(crate) async fn musicdl_search(
             })
         });
 
-        let (state_name, exit_code, mut message) = tokio::select! {
+        let (mut state_name, exit_code, mut message) = tokio::select! {
             status = child.wait() => match status {
                 Ok(status) if status.success() => (
                     "completed",
@@ -158,10 +174,11 @@ pub(crate) async fn musicdl_search(
                 ),
             },
             _ = sleep(Duration::from_secs(1800)) => {
-                let _ = child.kill().await;
+                timeout_killer.kill_tree();
+                let exit_code = child.wait().await.ok().and_then(|status| status.code());
                 (
                     "failed",
-                    None,
+                    exit_code,
                     "musicdl 搜索超过 30 分钟，已停止；请减少音乐源或检查网络".to_string(),
                 )
             },
@@ -173,15 +190,22 @@ pub(crate) async fn musicdl_search(
             let _ = task.await;
         }
 
+        let canceled =
+            task_registry.finish(&task_job_id) || cancel_requested.load(Ordering::Acquire);
+        if canceled {
+            state_name = "canceled";
+            message = "musicdl 搜索已取消".into();
+        }
+
+        let mut response = None;
         if state_name == "completed" {
             match payload_rx.await {
                 Ok(payload) => {
                     let count = payload.results.len();
-                    let response = MusicdlSearchResponse {
+                    response = Some(MusicdlSearchResponse {
                         session_id: task_job_id.clone(),
                         results: payload.results,
-                    };
-                    let _ = task_app.emit("musicdl-search-result", response);
+                    });
                     message = format!("musicdl 搜索完成，共 {count} 项结果");
                 }
                 Err(_) => {
@@ -194,6 +218,14 @@ pub(crate) async fn musicdl_search(
         } else {
             state_name
         };
+        if final_state == "completed" {
+            let _ = session_directory.into_path();
+        } else {
+            drop(session_directory);
+        }
+        if let Some(response) = response {
+            let _ = task_app.emit("musicdl-search-result", response);
+        }
         let _ = task_app.emit(
             "job-state",
             JobState {
@@ -209,13 +241,43 @@ pub(crate) async fn musicdl_search(
 }
 
 #[tauri::command]
+pub(crate) fn musicdl_search_cancel(
+    registry: State<'_, MusicSearchRegistry>,
+    job_id: String,
+) -> Result<(), String> {
+    let job_id = sessions::canonical_session_id(&job_id)?;
+    if registry.cancel(&job_id) {
+        Ok(())
+    } else {
+        Err("musicdl 搜索不存在或已经结束".into())
+    }
+}
+
+#[tauri::command]
+pub(crate) fn musicdl_session_release(
+    app: AppHandle,
+    registry: State<'_, MusicSearchRegistry>,
+    session_id: String,
+) -> Result<(), String> {
+    let session_id = sessions::canonical_session_id(&session_id)?;
+    if registry.is_active(&session_id) {
+        return Err("musicdl 搜索仍在运行，请先停止搜索".into());
+    }
+    sessions::release_search_session(&app, &session_id)
+}
+
+#[tauri::command]
 pub(crate) async fn musicdl_download(
     app: AppHandle,
     hub: State<'_, TaskHub>,
+    registry: State<'_, MusicSearchRegistry>,
     session_id: String,
     indices: Vec<usize>,
-) -> Result<RunResult, String> {
-    Uuid::parse_str(&session_id).map_err(|_| "无效的 musicdl 搜索会话".to_string())?;
+) -> Result<TaskSubmitResult, String> {
+    let session_id = sessions::canonical_session_id(&session_id)?;
+    if registry.is_active(&session_id) {
+        return Err("musicdl 搜索仍在运行，请等待搜索完成".into());
+    }
     if indices.is_empty() {
         return Err("请至少选择一首音乐".into());
     }
@@ -225,19 +287,41 @@ pub(crate) async fn musicdl_download(
     let (musicdl, _) = resolve_tool(&app, &ToolName::Musicdl)
         .ok_or_else(|| "未安装 musicdl，请重新检测依赖".to_string())?;
     let python = musicdl_python(&musicdl)?;
-    let adapter = musicdl_adapter(&app)?;
-    let state_path = musicdl_sessions_dir(&app)?
-        .join(&session_id)
-        .join("results.pickle");
-    if !state_path.is_file() {
+    let adapter = runtime::adapter_path(&app)?;
+    let source_state_path =
+        sessions::search_session_path(&app, &session_id)?.join("results.pickle");
+    if !source_state_path.is_file() {
         return Err("musicdl 搜索结果已失效，请重新搜索".into());
     }
     let selected = serde_json::to_string(&indices).map_err(|error| error.to_string())?;
+    // 输出目录以搜索会话落盘的 request.json 为准（搜索时已解析默认值），
+    // 作为下载任务的工作目录兼任务卡"打开输出位置"的锚点
+    let output_directory = std::fs::read(
+        sessions::search_session_path(&app, &session_id)?.join("request.json"),
+    )
+    .ok()
+    .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+    .and_then(|value| {
+        value
+            .get("outputDirectory")
+            .and_then(|v| v.as_str())
+            .map(str::to_owned)
+    });
+    let task_directory = PreparedSessionDir::task(&app)?;
+    let task_state_path = task_directory.path().join("results.pickle");
+    std::fs::copy(&source_state_path, &task_state_path)
+        .map_err(|error| format!("无法准备 musicdl 下载会话：{error}"))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&task_state_path, std::fs::Permissions::from_mode(0o600))
+            .map_err(|error| error.to_string())?;
+    }
     // 音乐下载作业进任务系统（§3：musicdl 旁路取消）；搜索维持查询语义
     let argv = vec![
         adapter.to_string_lossy().into_owned(),
         "download".into(),
-        state_path.to_string_lossy().into_owned(),
+        task_state_path.to_string_lossy().into_owned(),
         selected,
     ];
     let task_id = hub.submit(TaskSpec {
@@ -249,7 +333,8 @@ pub(crate) async fn musicdl_download(
         tool_version: None,
         argv_redacted: argv.clone(),
         argv,
-        cwd: None,
+        cwd: output_directory.clone().map(std::path::PathBuf::from),
+        output_paths: output_directory.clone().map(|d| vec![d]).unwrap_or_default(),
         env_path: Some(command_path()),
         intent: TaskIntent::Form(serde_json::json!({
             "musicdl": "download",
@@ -258,8 +343,9 @@ pub(crate) async fn musicdl_download(
         })),
         parser: None,
         on_failure: None,
+        cleanup_dir: Some(task_directory.into_path()),
     });
-    Ok(RunResult { job_id: task_id })
+    Ok(TaskSubmitResult { task_id })
 }
 
 #[tauri::command]
@@ -267,7 +353,7 @@ pub(crate) async fn musicdl_playlist(
     app: AppHandle,
     hub: State<'_, TaskHub>,
     mut request: MusicdlPlaylistRequest,
-) -> Result<RunResult, String> {
+) -> Result<TaskSubmitResult, String> {
     request.playlist_url = request.playlist_url.trim().to_string();
     request.music_sources = request
         .music_sources
@@ -314,10 +400,9 @@ pub(crate) async fn musicdl_playlist(
     let (musicdl, _) = resolve_tool(&app, &ToolName::Musicdl)
         .ok_or_else(|| "未安装 musicdl，请重新检测依赖".to_string())?;
     let python = musicdl_python(&musicdl)?;
-    let adapter = musicdl_adapter(&app)?;
-    let session_directory = musicdl_sessions_dir(&app)?.join(Uuid::new_v4().to_string());
-    std::fs::create_dir_all(&session_directory).map_err(|error| error.to_string())?;
-    let request_path = session_directory.join("playlist-request.json");
+    let adapter = runtime::adapter_path(&app)?;
+    let task_directory = PreparedSessionDir::task(&app)?;
+    let request_path = task_directory.path().join("playlist-request.json");
     std::fs::write(
         &request_path,
         serde_json::to_vec(&request).map_err(|error| error.to_string())?,
@@ -344,7 +429,8 @@ pub(crate) async fn musicdl_playlist(
         tool_version: None,
         argv_redacted: argv.clone(),
         argv,
-        cwd: None,
+        cwd: Some(std::path::PathBuf::from(output_directory.clone())),
+        output_paths: vec![output_directory.clone()],
         env_path: Some(command_path()),
         intent: TaskIntent::Form(serde_json::json!({
             "musicdl": "playlist",
@@ -352,6 +438,7 @@ pub(crate) async fn musicdl_playlist(
         })),
         parser: None,
         on_failure: None,
+        cleanup_dir: Some(task_directory.into_path()),
     });
-    Ok(RunResult { job_id: task_id })
+    Ok(TaskSubmitResult { task_id })
 }

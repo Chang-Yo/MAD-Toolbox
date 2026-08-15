@@ -15,6 +15,9 @@ pub struct AdapterPlan {
     pub title: String,
     pub pool: Pool,
     pub cwd: CwdPolicy,
+    /// 提交时已知的输出位置（下载目录或精确输出文件）；空 = 提交时无法预知，
+    /// 交给运行中的输出解析器回填。供任务信封 [打开输出位置] 使用。
+    pub output_paths: Vec<String>,
 }
 
 // ---- feature command 层共用的 DTO 与展示规则 ----

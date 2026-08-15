@@ -4,8 +4,10 @@
 
 use tauri::{AppHandle, State};
 
-use super::adapter;
+use super::{adapter, login};
 use crate::core::adapter::{preview_result, PreviewResult, SubmitResult};
+use crate::core::deps::{command_path, resolve_tool, ToolName};
+use crate::core::query::RunResult;
 use crate::core::task::types::{CwdPolicy, Feature, TaskIntent};
 use crate::core::task::{TaskHub, TaskSpec};
 
@@ -13,11 +15,11 @@ use crate::core::task::{TaskHub, TaskSpec};
 /// 登录是"带自定义事件的长时查询"（§4.2 实施期修正），不进任务系统；
 /// 生命周期事件沿用 job-state/bbdown-login-qr 通道。
 #[tauri::command]
-pub(crate) async fn bilibili_login_start(app: AppHandle) -> Result<crate::RunResult, String> {
-    let (executable, _) = crate::resolve_tool(&app, &crate::ToolName::Bbdown)
+pub(crate) async fn bilibili_login_start(app: AppHandle) -> Result<RunResult, String> {
+    let (executable, _) = resolve_tool(&app, &ToolName::Bbdown)
         .ok_or_else(|| "未找到 BBDown，请先在依赖页安装".to_string())?;
-    let working_dir = crate::bbdown_directory(&executable)?;
-    crate::spawn_bbdown_login_job(app, working_dir).await
+    let working_dir = login::bbdown_directory(&executable)?;
+    login::spawn_bbdown_login_job(app, working_dir).await
 }
 
 #[tauri::command]
@@ -33,11 +35,12 @@ pub fn bilibili_submit(
     intent: TaskIntent,
 ) -> Result<SubmitResult, String> {
     let plan = adapter::plan(&intent).map_err(|e| e.to_string())?;
-    let (tool_path, _bundled) = crate::resolve_tool(&app, &crate::ToolName::Bbdown)
+    let (tool_path, _bundled) = resolve_tool(&app, &ToolName::Bbdown)
         .ok_or_else(|| "未找到 BBDown，请先在依赖页安装".to_string())?;
     let cwd = match plan.cwd {
-        CwdPolicy::ExeDir => Some(crate::bbdown_directory(&tool_path)?),
+        CwdPolicy::ExeDir => Some(login::bbdown_directory(&tool_path)?),
         CwdPolicy::Inherit => None,
+        CwdPolicy::Explicit(dir) => Some(std::path::PathBuf::from(dir)),
     };
     let spec = TaskSpec {
         feature: Feature::Bilibili,
@@ -49,11 +52,13 @@ pub fn bilibili_submit(
         argv: plan.argv,
         argv_redacted: plan.argv_redacted,
         cwd,
-        env_path: Some(crate::command_path()),
+        output_paths: plan.output_paths,
+        env_path: Some(command_path()),
         // 落库的意图必须先脱敏（§4.5）；本次执行用的完整 argv 不受影响
         intent: adapter::sanitize_intent(&intent),
         parser: None,     // BBDown 进度解析待样板后接入
         on_failure: None, // BBDown 无失败兜底语义（yt-dlp 专属）
+        cleanup_dir: None,
     };
     Ok(SubmitResult {
         task_id: hub.submit(spec),

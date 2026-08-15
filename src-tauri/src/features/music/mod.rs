@@ -1,4 +1,7 @@
-//! music（musicdl）垂直切片：搜索查询 + 下载/歌单作业。
-//! 会话数据（request.json / results.pickle）与请求结构暂留 lib.rs，随 deps 阶段进一步归位。
+//! music（musicdl）垂直切片：搜索查询 + 下载/歌单作业 + 等效 CLI 预览。
 
+pub(crate) mod cli;
 pub mod commands;
+pub(crate) mod runtime;
+pub(crate) mod sessions;
+pub(crate) mod types;

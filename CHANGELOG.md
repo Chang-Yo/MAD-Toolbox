@@ -2,7 +2,15 @@
 
 All notable changes to MAD Toolbox are documented here.
 
-## 0.7.0 - Pre-release (2026-08-15)
+## 0.7.1
+
+- 🐛fix: 修复任务卡片删除按钮无响应
+- 🐛fix: 修复打开输出文件目录在父级文件夹的位置
+- 🐛fix: 修复路径名或任务名过长时标签被压缩的视觉问题
+- 🔥feat: 美化settings页面，将开发团队信息加入
+- 🔥feat: 上方导航栏加入了点击动画
+
+## 0.7.0
 
 ＞＞＞ Refactor Plan [#14](https://github.com/MAD-Producer/MAD-Toolbox/issues/14) [#23](https://github.com/MAD-Producer/MAD-Toolbox/issues/23)
 

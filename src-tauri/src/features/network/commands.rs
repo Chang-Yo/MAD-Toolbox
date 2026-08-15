@@ -10,14 +10,15 @@ use tokio::sync::Semaphore;
 
 use super::adapter::{self, NetworkCtx, ProbeKind, NEEDS_BROWSER_COOKIES_SIGNAL};
 use crate::core::adapter::{preview_result, PreviewResult, SubmitResult};
+use crate::core::deps::{command_path, resolve_tool, ToolName};
 use crate::core::task::types::{CwdPolicy, Feature, TaskIntent};
 use crate::core::task::{FailureAdvisor, ParsedSignal, TaskHub, TaskSpec};
 
 fn resolve_ctx(app: &AppHandle) -> NetworkCtx {
     NetworkCtx {
-        deno_path: crate::resolve_tool(app, &crate::ToolName::Deno)
+        deno_path: resolve_tool(app, &ToolName::Deno)
             .map(|(p, _)| p.to_string_lossy().into_owned()),
-        ffmpeg_location: crate::resolve_tool(app, &crate::ToolName::Ffmpeg)
+        ffmpeg_location: resolve_tool(app, &ToolName::Ffmpeg)
             .map(|(p, _)| p.to_string_lossy().into_owned()),
     }
 }
@@ -36,11 +37,12 @@ pub fn network_submit(
 ) -> Result<SubmitResult, String> {
     let ctx = resolve_ctx(&app);
     let plan = adapter::plan(&intent, &ctx).map_err(|e| e.to_string())?;
-    let (tool_path, _) = crate::resolve_tool(&app, &crate::ToolName::YtDlp)
+    let (tool_path, _) = resolve_tool(&app, &ToolName::YtDlp)
         .ok_or_else(|| "未找到 yt-dlp，请先在依赖页安装".to_string())?;
     let cwd = match plan.cwd {
         CwdPolicy::Inherit => None,
         CwdPolicy::ExeDir => tool_path.parent().map(|p| p.to_path_buf()),
+        CwdPolicy::Explicit(dir) => Some(std::path::PathBuf::from(dir)),
     };
 
     // 失败兜底（§2）：解析器发信号，顾问按预先算好的重试计划决定是否重试
@@ -74,10 +76,12 @@ pub fn network_submit(
         argv: plan.argv,
         argv_redacted: plan.argv_redacted,
         cwd,
-        env_path: Some(crate::command_path()),
+        output_paths: plan.output_paths,
+        env_path: Some(command_path()),
         intent: adapter::sanitize_intent(&intent),
         parser,
         on_failure,
+        cleanup_dir: None,
     };
     Ok(SubmitResult {
         task_id: hub.submit(spec),
@@ -96,7 +100,7 @@ pub async fn network_probe(
 ) -> Result<String, String> {
     let ctx = resolve_ctx(&app);
     let argv = adapter::probe_argv(&intent, &ctx, kind).map_err(|e| e.to_string())?;
-    let (tool_path, _) = crate::resolve_tool(&app, &crate::ToolName::YtDlp)
+    let (tool_path, _) = resolve_tool(&app, &ToolName::YtDlp)
         .ok_or_else(|| "未找到 yt-dlp，请先在依赖页安装".to_string())?;
 
     let _permit = PROBE_PERMITS
@@ -105,7 +109,7 @@ pub async fn network_probe(
         .map_err(|_| "查询通道已关闭".to_string())?;
     let mut cmd = tokio::process::Command::new(&tool_path);
     cmd.args(&argv)
-        .env("PATH", crate::command_path())
+        .env("PATH", command_path())
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())

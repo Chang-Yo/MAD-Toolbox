@@ -53,13 +53,26 @@ fn plan_form(intent: &NetworkIntent, ctx: &NetworkCtx) -> Result<AdapterPlan, Ad
     }
     let argv = build_argv(intent, ctx, false);
     let argv_redacted = redact_argv(&argv);
+    // 输出目录即工作目录：yt-dlp 未配置 -P 时按 cwd 落盘，同时作为"打开输出位置"锚点
+    let cwd = if intent.output_directory.trim().is_empty() {
+        CwdPolicy::Inherit
+    } else {
+        CwdPolicy::Explicit(intent.output_directory.trim().to_string())
+    };
+    // -P 指定的下载目录提交时已知；精确文件名要等输出解析器接入
+    let output_paths = if intent.output_directory.trim().is_empty() {
+        Vec::new()
+    } else {
+        vec![intent.output_directory.trim().to_string()]
+    };
     Ok(AdapterPlan {
         tool: "yt-dlp",
         argv,
         argv_redacted,
         title: title_for(intent.mode, url),
         pool: Pool::Download,
-        cwd: CwdPolicy::Inherit,
+        cwd,
+        output_paths,
     })
 }
 
@@ -80,6 +93,7 @@ fn plan_manual(argv: &[String], ctx: &NetworkCtx) -> Result<AdapterPlan, Adapter
         argv_redacted,
         pool: Pool::Download,
         cwd: CwdPolicy::Inherit,
+        output_paths: Vec::new(),
     })
 }
 

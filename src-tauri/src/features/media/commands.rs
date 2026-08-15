@@ -111,6 +111,16 @@ pub async fn media_submit(
         return Err("没有可处理的媒体文件".into());
     }
 
+    // 指定了输出目录时先建目录：ffmpeg 不会自建，默认目录也可能尚未落盘
+    if let Some(directory) = data
+        .get("outputDirectory")
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        std::fs::create_dir_all(directory).map_err(|e| e.to_string())?;
+    }
+
     let ctx = media_ctx(&app).await;
     let (tool_path, _) = resolve_tool(&app, &ToolName::Ffmpeg)
         .ok_or_else(|| "未找到 FFmpeg，请先在依赖页安装".to_string())?;

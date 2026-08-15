@@ -12,6 +12,8 @@ pub fn run() {
             // TaskHub::new 内部随后执行遗留任务对账（§4.3/§4.5）
             let handle = app.handle().clone();
             let data_dir = core::settings::app_data_dir(&handle).map_err(std::io::Error::other)?;
+            // 统一默认输出目录：各功能页默认下载到 系统「下载」/MADToolbox，启动时确保存在
+            let _ = core::settings::unified_output_directory(&handle);
             let _ = features::music::sessions::cleanup_orphaned_sessions(&handle);
             let store = core::task::store::TaskStore::open(&data_dir.join("tasks.db"))?;
             let _ = core::task::logfile::cleanup_expired(

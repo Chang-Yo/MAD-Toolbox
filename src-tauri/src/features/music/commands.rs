@@ -7,7 +7,7 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, State};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::sync::oneshot;
 use tokio::time::sleep;
@@ -22,6 +22,7 @@ use super::{cli, runtime};
 use crate::core::deps::{command_path, musicdl_python, resolve_tool, ToolName};
 use crate::core::process::spawn_tree;
 use crate::core::query::{JobState, RunResult};
+use crate::core::settings::unified_output_directory;
 use crate::core::task::types::{Feature, Pool, TaskIntent};
 use crate::core::task::{TaskHub, TaskSpec};
 
@@ -75,13 +76,7 @@ pub(crate) async fn musicdl_search(
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
     if request.output_directory.is_none() {
-        request.output_directory = app.path().download_dir().ok().map(|directory| {
-            directory
-                .join("MAD Toolbox")
-                .join("Music")
-                .to_string_lossy()
-                .into_owned()
-        });
+        request.output_directory = unified_output_directory(&app);
     }
     if let Some(directory) = &request.output_directory {
         std::fs::create_dir_all(directory)
@@ -383,15 +378,7 @@ pub(crate) async fn musicdl_playlist(
         .output_directory
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
-        .or_else(|| {
-            app.path().download_dir().ok().map(|directory| {
-                directory
-                    .join("MAD Toolbox")
-                    .join("Music")
-                    .to_string_lossy()
-                    .into_owned()
-            })
-        });
+        .or_else(|| unified_output_directory(&app));
     let output_directory = request
         .output_directory
         .as_ref()

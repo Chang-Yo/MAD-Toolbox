@@ -30,6 +30,14 @@ pub(crate) fn app_data_dir(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(path)
 }
 
+/// 各功能页统一的默认输出目录：系统「下载」/MADToolbox（前端 src/lib/platform.ts 同名常量）。
+/// 返回前确保目录存在，下载器与 ffmpeg 都不会自建该目录。
+pub(crate) fn unified_output_directory(app: &AppHandle) -> Option<String> {
+    let directory = app.path().download_dir().ok()?.join("MADToolbox");
+    std::fs::create_dir_all(&directory).ok()?;
+    Some(directory.to_string_lossy().into_owned())
+}
+
 fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(app_data_dir(app)?.join("settings.json"))
 }

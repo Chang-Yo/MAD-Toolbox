@@ -1,8 +1,6 @@
 import { Badge, Button, Card, Group, Stack, Text } from "@mantine/core";
-import { useState } from "react";
 import { IconCircleCheck, IconRefresh } from "@tabler/icons-react";
 import type { DependencyStatus } from "../lib/types";
-import { CollapsibleSection } from "./CollapsibleSection";
 
 interface DependencyStatusPanelProps {
   dependencies: DependencyStatus[];
@@ -10,19 +8,18 @@ interface DependencyStatusPanelProps {
   onRefresh: () => void;
 }
 
-/** 状态列表：折叠区 + 汇总徽标 + 逐工具来源/版本/路径；缺失工具的安装引导由 DependencyInstallCards 承担。 */
+/** 状态列表：汇总徽标 + 重新检测 + 逐工具来源/版本/路径；缺失工具的安装引导由 DependencyInstallCards 承担。 */
 export function DependencyStatusPanel({
   dependencies,
   loading,
   onRefresh
 }: DependencyStatusPanelProps) {
-  const [open, setOpen] = useState(false);
   const missing = dependencies.filter((item) => item.required && !item.available);
 
   return (
-    <CollapsibleSection
-      title={
-        missing.length > 0 ? (
+    <Stack gap="sm">
+      <Group justify="space-between" wrap="nowrap">
+        {missing.length > 0 ? (
           <Badge variant="light" color="yellow">
             {missing.length} 个必要工具未就绪
           </Badge>
@@ -30,11 +27,7 @@ export function DependencyStatusPanel({
           <Badge variant="light" color="teal" leftSection={<IconCircleCheck size={12} />}>
             必要工具均已就绪
           </Badge>
-        )
-      }
-      opened={open}
-      onToggle={() => setOpen((value) => !value)}
-      action={
+        )}
         <Button
           size="compact-sm"
           variant="subtle"
@@ -44,8 +37,7 @@ export function DependencyStatusPanel({
         >
           重新检测
         </Button>
-      }
-    >
+      </Group>
       <Stack gap="xs">
         {dependencies.map((dependency) => (
           <Card key={dependency.tool} withBorder padding="sm">
@@ -82,6 +74,6 @@ export function DependencyStatusPanel({
           </Card>
         ))}
       </Stack>
-    </CollapsibleSection>
+    </Stack>
   );
 }

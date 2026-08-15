@@ -23,6 +23,10 @@ interface PillPosition {
   right: number;
 }
 
+/** 点击导航时的描边轨迹动画时长，缓动与运行中循环动画（animations.css）一致 */
+const DRAW_DURATION_MS = 700;
+const DRAW_EASING = "cubic-bezier(0.45, 0, 0.2, 1)";
+
 export function TopNavigation({ items, active, onNavigate, statuses }: TopNavigationProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -44,6 +48,24 @@ export function TopNavigation({ items, active, onNavigate, statuses }: TopNaviga
       right: container.offsetWidth - item.offsetLeft - item.offsetWidth
     });
   }, [active, items]);
+
+  // 描边轨迹动画：与运行中循环动画同一手法（stroke-dash 位移），但按每条 path
+  // 实际长度取值——CSS 固定 dasharray:64 对长路径（如设置齿轮）会露出虚线残影。
+  // WAAPI 播放完自动回收样式，无需清理。
+  const drawIcon = (index: number) => {
+    const node = itemRefs.current[index];
+    if (!node) return;
+    node.querySelectorAll<SVGPathElement>("svg path").forEach((path) => {
+      const length = path.getTotalLength();
+      path.animate(
+        [
+          { strokeDasharray: `${length}`, strokeDashoffset: `${length}` },
+          { strokeDasharray: `${length}`, strokeDashoffset: "0" }
+        ],
+        { duration: DRAW_DURATION_MS, easing: DRAW_EASING }
+      );
+    });
+  };
 
   useEffect(() => {
     const container = containerRef.current;
@@ -132,7 +154,11 @@ export function TopNavigation({ items, active, onNavigate, statuses }: TopNaviga
                     style={{ position: "relative", zIndex: 1 }}
                     aria-label={status ? `${label}，${status.label}` : label}
                     aria-current={isActive ? "page" : undefined}
-                    onClick={() => onNavigate(section)}
+                    onClick={() => {
+                      onNavigate(section);
+                      // 任务运行中的图标已有循环描边动画，点击时不再叠加一次性动画
+                      if (!running) drawIcon(index);
+                    }}
                   >
                     <Icon size={20} stroke={1.7} />
                   </ActionIcon>

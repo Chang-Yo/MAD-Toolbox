@@ -43,8 +43,8 @@ export const MEDIA_L2_NAVIGATION = [
 
 export const SETTINGS_L2_NAVIGATION = [
   { page: "general", label: "通用" },
-  { page: "dependencies", label: "依赖管理" },
-  { page: "about", label: "关于与许可" }
+  { page: "dependencies", label: "依赖" },
+  { page: "about", label: "关于" }
 ] as const satisfies readonly L2NavigationItem<SettingsPageId>[];
 
 export const L2_NAVIGATION = {

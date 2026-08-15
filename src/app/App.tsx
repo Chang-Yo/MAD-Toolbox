@@ -15,10 +15,11 @@ import { TasksPage } from "../pages/tasks/TasksPage";
 import { GeneralSettingsPage } from "../pages/settings/GeneralSettingsPage";
 import { DependenciesSettingsPage } from "../pages/settings/DependenciesSettingsPage";
 import { AboutSettingsPage } from "../pages/settings/AboutSettingsPage";
+import { SettingsShell } from "../pages/settings/SettingsShell";
 import { useBilibiliLoginStore } from "../stores/bilibili-login";
 import { useMusicSessionStore } from "../stores/music-session";
 import { useWorkspacesStore, type WorkspaceId } from "../stores/workspaces";
-import { L1_NAVIGATION, SETTINGS_L2_NAVIGATION } from "./navigation";
+import { L1_NAVIGATION } from "./navigation";
 import {
   DEFAULT_APP_ROUTE,
   routeForTask,
@@ -36,7 +37,7 @@ function workspaceIdForRoute(route: AppRoute): WorkspaceId | null {
   return null;
 }
 
-/** 各功能页的核心依赖：缺失时页头显示红色警示并跳转依赖管理页。 */
+/** 各功能页的核心依赖：缺失时页头显示红色警示并跳转设置的依赖页。 */
 const FEATURE_DEPENDENCIES: Record<WorkspaceId, readonly ToolName[]> = {
   bilibili: ["bbdown"],
   network: ["yt-dlp"],
@@ -102,7 +103,7 @@ export default function App() {
       title: "依赖未就绪",
       message: `检测到 ${missing.length} 个必要依赖缺失：${missing
         .map((item) => item.label)
-        .join("、")}。请前往 设置 → 依赖管理 安装。`,
+        .join("、")}。请前往 设置 → 依赖 安装。`,
       autoClose: false
     });
   }, [backend.loadingDependencies, backend.dependencies, dependenciesReady]);
@@ -182,29 +183,24 @@ export default function App() {
       );
     }
     if (route.section !== "settings") return null;
-    if (route.page === "general") {
-      return (
-        <GeneralSettingsPage
-          settings={backend.settings}
-          onSave={async (settings) => {
-            const saved = await backend.saveSettings(settings);
-            await backend.refreshDependencies();
-            return saved;
-          }}
-        />
-      );
-    }
-    if (route.page === "dependencies") {
-      return (
-        <DependenciesSettingsPage
-          dependencies={backend.dependencies}
-          loading={backend.loadingDependencies}
-          distributionMode={distributionMode}
-          onRefresh={() => void backend.refreshDependencies()}
-        />
-      );
-    }
-    return <AboutSettingsPage distributionMode={distributionMode} />;
+    return (
+      <SettingsShell page={route.page} onNavigatePage={navigateSecondary}>
+        {route.page === "general" ? (
+          <GeneralSettingsPage settings={backend.settings} onSave={backend.saveSettings} />
+        ) : route.page === "dependencies" ? (
+          <DependenciesSettingsPage
+            settings={backend.settings}
+            onSave={backend.saveSettings}
+            dependencies={backend.dependencies}
+            loading={backend.loadingDependencies}
+            distributionMode={distributionMode}
+            onRefresh={() => void backend.refreshDependencies()}
+          />
+        ) : (
+          <AboutSettingsPage />
+        )}
+      </SettingsShell>
+    );
   };
 
   const activeWorkspace = workspaceIdForRoute(route);
@@ -272,8 +268,8 @@ export default function App() {
     }
   ];
 
-  // 媒体工作流的 L2 导航已内联为页头 Select，侧栏仅保留给设置页
-  const secondaryItems = route.section === "settings" ? SETTINGS_L2_NAVIGATION : [];
+  // L2 导航已全部内联到页面：媒体页为页头 SegmentedControl，设置页为悬浮竖排 SegmentedControl
+  const secondaryItems: readonly never[] = [];
 
   return (
     <AppShell
@@ -305,10 +301,8 @@ export default function App() {
     >
       <WorkspaceSessionHost activeWorkspace={activeWorkspace} workspaces={workspaces} />
       {activeWorkspace === null ? (
-        <div
-          key={"page" in route ? `${route.section}:${route.page}` : route.section}
-          className="workspace-enter"
-        >
+        // key 仅为 section 级：设置子页切换时不重挂载 Shell，SegmentedControl 指示条得以平滑滑动
+        <div key={route.section} className="workspace-enter">
           {renderNonWorkspacePage()}
         </div>
       ) : null}

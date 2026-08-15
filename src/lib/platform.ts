@@ -57,7 +57,7 @@ export const musicdlInstallCommand = isWindows
 
 export const pipCommand = isWindows ? "py -m pip" : "python3 -m pip";
 
-/** 各依赖缺失时依赖管理页展示的安装命令；bbdown 仅认内置副本、ffprobe 随 FFmpeg 分发，均不设卡。 */
+/** 各依赖缺失时依赖设置页展示的安装命令；bbdown 仅认内置副本、ffprobe 随 FFmpeg 分发，均不设卡。 */
 export const toolInstallCommands: Partial<Record<ToolName, string>> = {
   ffmpeg: isWindows ? `winget install --id Gyan.FFmpeg -e ${WINGET_ACCEPT}` : "brew install ffmpeg",
   "yt-dlp": isWindows

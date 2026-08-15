@@ -20,7 +20,7 @@ interface TasksStore extends TasksState {
   init: () => Promise<void>;
   cancel: (taskId: string) => void;
   promote: (taskId: string) => void;
-  remove: (taskIds: string[]) => Promise<void>;
+  remove: (taskIds: string[]) => Promise<string[]>;
 }
 
 let initStarted = false;
@@ -59,10 +59,11 @@ export const useTasksStore = create<TasksStore>((set, get) => ({
   remove: async (taskIds) => {
     if (import.meta.env.DEV && !("__TAURI_INTERNALS__" in window)) {
       set((state) => removeTasks(state, taskIds));
-      return;
+      return taskIds;
     }
     const deleted = await invoke<string[]>("task_delete", { taskIds });
     set((state) => removeTasks(state, deleted));
+    return deleted;
   }
 }));
 

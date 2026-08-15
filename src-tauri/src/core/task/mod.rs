@@ -531,20 +531,20 @@ impl HubState {
     }
 
     /// 删除终态任务：活动任务（queued/running/canceling）不可删——先取消再删。
-    /// 终态任务不可能再出现在队列/运行表，删除即信封出内存 + 落库删除 + 日志文件清理。
+    /// 内存镜像只有本会话提交的任务，历史任务回退查库（快照即两源合并）；
+    /// 删除 = 清日志文件 + 库行 + 内存条目，返回实际删除的 id。
     fn handle_delete(&mut self, ids: Vec<String>) -> Vec<String> {
         let mut deleted = Vec::new();
         for id in ids {
-            let Some(envelope) = self.envelopes.get(&id) else {
+            let envelope = self
+                .envelopes
+                .get(&id)
+                .cloned()
+                .or_else(|| self.store.get(&id).ok().flatten());
+            let Some(envelope) = envelope else {
                 continue;
             };
-            if !matches!(
-                envelope.status,
-                TaskStatus::Success
-                    | TaskStatus::Failed
-                    | TaskStatus::Canceled
-                    | TaskStatus::Interrupted
-            ) {
+            if !envelope.status.is_terminal() {
                 continue;
             }
             if let Some(log_path) = &envelope.log_path {

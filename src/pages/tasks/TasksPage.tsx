@@ -20,6 +20,9 @@ interface TasksPageProps {
   onRerun: (task: TaskEnvelope) => void;
 }
 
+/** 删除滑出动画时长，须与 animations.css 中 task-card-slot 的 transition 一致 */
+const DELETE_ANIMATION_MS = 280;
+
 function HeroStat({ label, value, color }: { label: string; value: number; color: string }) {
   return (
     <Group gap="xs" wrap="nowrap" align="center">
@@ -42,6 +45,8 @@ export function TasksPage({ onRerun }: TasksPageProps) {
   const [definitions, setDefinitions] = useState<PoolDefinition[]>([]);
   const [todayOpen, setTodayOpen] = useState(true);
   const [historyOpen, setHistoryOpen] = useState(false);
+  // 删除动画期间标记待删卡片：先滑走再调后端，失败则撤销标记
+  const [exiting, setExiting] = useState<ReadonlySet<string>>(() => new Set());
 
   useEffect(() => {
     if (import.meta.env.DEV && !("__TAURI_INTERNALS__" in window)) {
@@ -70,21 +75,44 @@ export function TasksPage({ onRerun }: TasksPageProps) {
   );
 
   const deleteTasks = (ids: string[]) => {
-    remove(ids).catch((error) =>
-      notifications.show({ message: `删除任务失败：${String(error)}`, color: "red" })
-    );
+    setExiting((prev) => new Set([...prev, ...ids]));
+    window.setTimeout(() => {
+      remove(ids)
+        .then((deleted) => {
+          if (deleted.length > 0) {
+            notifications.show({ message: `已删除 ${deleted.length} 个任务`, color: "green" });
+          } else {
+            notifications.show({
+              message: "没有可删除的任务（活动任务不可删除）",
+              color: "yellow"
+            });
+          }
+        })
+        .catch((error) => {
+          setExiting((prev) => {
+            const next = new Set(prev);
+            ids.forEach((id) => next.delete(id));
+            return next;
+          });
+          notifications.show({ message: `删除任务失败：${String(error)}`, color: "red" });
+        });
+    }, DELETE_ANIMATION_MS);
   };
 
   const renderCard = (task: TaskEnvelope) => (
-    <TaskCard
+    <div
       key={task.id}
-      task={task}
-      logs={logs[task.id]}
-      onCancel={cancel}
-      onPromote={promote}
-      onDelete={(id) => deleteTasks([id])}
-      onRerun={task.feature === "music" ? undefined : onRerun}
-    />
+      className={exiting.has(task.id) ? "task-card-slot task-card-slot-exiting" : "task-card-slot"}
+    >
+      <TaskCard
+        task={task}
+        logs={logs[task.id]}
+        onCancel={cancel}
+        onPromote={promote}
+        onDelete={(id) => deleteTasks([id])}
+        onRerun={task.feature === "music" ? undefined : onRerun}
+      />
+    </div>
   );
 
   return (

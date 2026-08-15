@@ -68,6 +68,29 @@
   animation: workspace-enter 180ms ease-out;
 }
 
+/* 任务卡删除：右移滑走 + 高度折叠。
+   槽位用 grid 行高 1fr→0fr 实现未知高度下的平滑收拢（Chromium 107+）；
+   时长须与 TasksPage 的 DELETE_ANIMATION_MS 一致。 */
+.task-card-slot {
+  display: grid;
+  grid-template-rows: 1fr;
+}
+
+.task-card-slot > * {
+  min-height: 0;
+}
+
+.task-card-slot-exiting {
+  grid-template-rows: 0fr;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateX(96px);
+  transition:
+    grid-template-rows 280ms ease-in,
+    opacity 200ms ease-in,
+    transform 280ms ease-in;
+}
+
 /* 注：刻意不跟随 prefers-reduced-motion——WebView2 会把 Windows
    「关闭动画效果 / 调整为最佳性能 / RDP 会话」映射为 reduce，
    曾导致本文件全部动效在部分环境下静默失效；

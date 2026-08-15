@@ -127,6 +127,17 @@ impl TaskStore {
         Ok(out)
     }
 
+    /// 按主键取单条：删除等操作需要读取不在内存镜像里的历史任务。
+    pub fn get(&self, id: &str) -> rusqlite::Result<Option<TaskEnvelope>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare("SELECT * FROM tasks WHERE id = ?1")?;
+        let mut rows = stmt.query(params![id])?;
+        match rows.next()? {
+            Some(row) => Ok(Some(row_to_envelope(row)?)),
+            None => Ok(None),
+        }
+    }
+
     pub fn delete(&self, id: &str) -> rusqlite::Result<()> {
         self.conn
             .lock()

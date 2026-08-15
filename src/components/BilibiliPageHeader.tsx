@@ -1,6 +1,7 @@
 import { Button, Group, Menu, Title } from "@mantine/core";
 import { IconChevronDown, IconDeviceFloppy, IconPlayerPlay, IconQrcode } from "@tabler/icons-react";
 import type { SavedTemplate } from "../pages/bilibili/templates";
+import { DependencyMissingBadge } from "./DependencyMissingBadge";
 
 interface BilibiliPageHeaderProps {
   active: boolean;
@@ -14,6 +15,8 @@ interface BilibiliPageHeaderProps {
   onBeginLogin: () => void;
   onSaveTemplate: () => void;
   onApplyTemplate: (template: SavedTemplate) => void;
+  dependencyLabels?: string[];
+  onOpenDependencies?: () => void;
 }
 
 export function BilibiliPageHeader({
@@ -27,11 +30,16 @@ export function BilibiliPageHeader({
   onTemplateMenuChange,
   onBeginLogin,
   onSaveTemplate,
-  onApplyTemplate
+  onApplyTemplate,
+  dependencyLabels,
+  onOpenDependencies
 }: BilibiliPageHeaderProps) {
   return (
     <Group justify="space-between" wrap="nowrap">
-      <Title order={3}>哔哩哔哩下载</Title>
+      <Group gap="xs" wrap="nowrap">
+        <Title order={3}>哔哩哔哩下载</Title>
+        <DependencyMissingBadge labels={dependencyLabels} onOpen={onOpenDependencies} />
+      </Group>
       <Group gap="xs" wrap="nowrap">
         <Button
           leftSection={<IconPlayerPlay size={16} />}

@@ -4,6 +4,7 @@ import type { MediaPageId } from "../app/route";
 import { MEDIA_L2_NAVIGATION } from "../app/navigation";
 import { useMediaWorkspace, type MediaWorkspacePageProps } from "../hooks/useMediaWorkspace";
 import { CollapsibleSection } from "./CollapsibleSection";
+import { DependencyMissingBadge } from "./DependencyMissingBadge";
 import { MediaAdvancedFields } from "./MediaAdvancedFields";
 import { MediaCommandPanel } from "./MediaCommandPanel";
 import { MediaDropzone } from "./MediaDropzone";
@@ -19,6 +20,8 @@ import { MediaTimeRangeFields } from "./MediaTimeRangeFields";
 
 interface MediaWorkspaceProps extends MediaWorkspacePageProps {
   page: MediaPageId;
+  dependencyLabels?: string[];
+  onOpenDependencies?: () => void;
 }
 
 /**
@@ -26,13 +29,22 @@ interface MediaWorkspaceProps extends MediaWorkspacePageProps {
  * 为常驻单实例，切换工作流时指示条平滑滑动；
  * 表单草稿由 useMediaWorkspace 在 page 变化时于渲染期重置。
  */
-export function MediaWorkspace({ page, onNavigatePage, ...pageProps }: MediaWorkspaceProps) {
+export function MediaWorkspace({
+  page,
+  onNavigatePage,
+  dependencyLabels,
+  onOpenDependencies,
+  ...pageProps
+}: MediaWorkspaceProps) {
   const workspace = useMediaWorkspace({ page, ...pageProps });
 
   return (
     <Stack gap="md" p="md">
       <Group justify="space-between" wrap="nowrap">
-        <Title order={3}>媒体处理</Title>
+        <Group gap="xs" wrap="nowrap">
+          <Title order={3}>媒体处理</Title>
+          <DependencyMissingBadge labels={dependencyLabels} onOpen={onOpenDependencies} />
+        </Group>
         <Group gap="xs" wrap="nowrap">
           <Button
             leftSection={<IconPlayerPlay size={16} />}

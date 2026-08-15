@@ -34,6 +34,7 @@ import {
 } from "@tabler/icons-react";
 import { useState } from "react";
 import type { TaskEnvelope, TaskStatus } from "../contracts/types";
+import { isWindows } from "../lib/platform";
 import type { TaskLogLine } from "../stores/tasks.reducer";
 
 const STATUS_META: Record<TaskStatus, { label: string; color: string }> = {
@@ -124,11 +125,20 @@ export function TaskCard({ task, logs, onCancel, onPromote, onDelete, onRerun }:
   };
 
   const revealOutput = () => {
-    if (task.outputPaths[0]) {
-      revealItemInDir(task.outputPaths[0]).catch(notifyOpenError("输出位置"));
-    } else if (task.workingDir) {
-      openPath(task.workingDir).catch(notifyOpenError("输出位置"));
+    const path = task.outputPaths[0];
+    if (!path) {
+      if (task.workingDir) openPath(task.workingDir).catch(notifyOpenError("输出位置"));
+      return;
     }
+    if (task.feature === "media") {
+      // 媒体任务输出的是具体文件，在所在目录中定位该文件
+      revealItemInDir(path).catch(notifyOpenError("输出位置"));
+      return;
+    }
+    // 下载类任务的输出路径是目录：补平台分隔符，让文件管理器直接进入目录内部
+    const separator = isWindows ? "\\" : "/";
+    const directory = path.endsWith("\\") || path.endsWith("/") ? path : path + separator;
+    openPath(directory).catch(notifyOpenError("输出位置"));
   };
 
   return (
@@ -147,11 +157,12 @@ export function TaskCard({ task, logs, onCancel, onPromote, onDelete, onRerun }:
             <IconChevronRight
               size={16}
               style={{
+                flexShrink: 0,
                 transform: opened ? "rotate(90deg)" : "none",
                 transition: "transform 150ms ease"
               }}
             />
-            <Badge color={status.color} variant="light">
+            <Badge color={status.color} variant="light" style={{ flexShrink: 0 }}>
               {status.label}
             </Badge>
             <Text size="sm" fw={500} truncate>

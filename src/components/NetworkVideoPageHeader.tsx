@@ -1,6 +1,7 @@
 import { Button, Group, Title } from "@mantine/core";
 import { IconInfoCircle, IconListDetails, IconPlayerPlay } from "@tabler/icons-react";
 import type { ProbeKind } from "../pages/network/api";
+import { DependencyMissingBadge } from "./DependencyMissingBadge";
 
 interface NetworkVideoPageHeaderProps {
   probing: ProbeKind | null;
@@ -9,6 +10,8 @@ interface NetworkVideoPageHeaderProps {
   submitDisabled: boolean;
   onSubmit: () => void;
   onProbe: (kind: ProbeKind) => Promise<void>;
+  dependencyLabels?: string[];
+  onOpenDependencies?: () => void;
 }
 
 export function NetworkVideoPageHeader({
@@ -17,11 +20,16 @@ export function NetworkVideoPageHeader({
   submitting,
   submitDisabled,
   onSubmit,
-  onProbe
+  onProbe,
+  dependencyLabels,
+  onOpenDependencies
 }: NetworkVideoPageHeaderProps) {
   return (
     <Group justify="space-between" wrap="nowrap">
-      <Title order={3}>网络视频下载</Title>
+      <Group gap="xs" wrap="nowrap">
+        <Title order={3}>网络视频下载</Title>
+        <DependencyMissingBadge labels={dependencyLabels} onOpen={onOpenDependencies} />
+      </Group>
       <Group gap="xs" wrap="nowrap">
         <Button
           leftSection={<IconPlayerPlay size={16} />}

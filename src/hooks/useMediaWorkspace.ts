@@ -13,6 +13,7 @@ import {
   type PreviewResult
 } from "../pages/media/api";
 import { defaultMediaForm, type MediaFormState } from "../pages/media/form";
+import { resolveDefaultOutputDirectory } from "../lib/platform";
 import {
   AUDIO_CODECS,
   CONTAINER_BY_OPERATION,
@@ -104,7 +105,8 @@ export function useMediaWorkspace({
     setDraftPage(page);
     setInputsState([]);
     setOperationState(pageConfig.operations[0]);
-    setForm(defaultMediaForm);
+    // 输出目录是跨工作流共享的默认值，切换草稿时保留
+    setForm({ ...defaultMediaForm, outputDirectory: form.outputDirectory });
     setAdvancedOpen(false);
     setExpertTextState(null);
     setPreviewState(null);
@@ -117,6 +119,20 @@ export function useMediaWorkspace({
     setDraftRevision(nextRevision);
     onRetain?.();
   };
+
+  // 输出目录默认统一到 系统「下载」/MADToolbox；程序预填不算用户编辑，不推进草稿版本
+  useEffect(() => {
+    let canceled = false;
+    void resolveDefaultOutputDirectory().then((directory) => {
+      if (canceled || !directory) return;
+      setForm((current) =>
+        current.outputDirectory ? current : { ...current, outputDirectory: directory }
+      );
+    });
+    return () => {
+      canceled = true;
+    };
+  }, []);
 
   const update = (patch: Partial<MediaFormState>) => {
     reviseDraft();

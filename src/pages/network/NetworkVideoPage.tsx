@@ -22,6 +22,8 @@ export function NetworkVideoPage(props: NetworkVideoPageProps) {
         submitDisabled={!workspace.expertMode && !workspace.preview}
         onSubmit={() => void workspace.submit()}
         onProbe={workspace.probe}
+        dependencyLabels={props.dependencyLabels}
+        onOpenDependencies={props.onOpenDependencies}
       />
 
       <Stack gap="sm">

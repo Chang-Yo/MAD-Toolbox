@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { notifications } from "@mantine/notifications";
 import { useBackend } from "../hooks/useBackend";
 import { useTasksStore } from "../stores/tasks";
-import type { MusicdlPlaylistRequest, TaskSubmitResult } from "../lib/types";
+import type { MusicdlPlaylistRequest, TaskSubmitResult, ToolName } from "../lib/types";
 import type { TaskEnvelope } from "../contracts/types";
 import { AppShell } from "../components/AppShell";
 import { WorkspaceSessionHost, type WorkspaceDefinition } from "../components/WorkspaceSessionHost";
@@ -35,6 +35,14 @@ function workspaceIdForRoute(route: AppRoute): WorkspaceId | null {
   if (route.section === "media") return "media";
   return null;
 }
+
+/** 各功能页的核心依赖：缺失时页头显示红色警示并跳转依赖管理页。 */
+const FEATURE_DEPENDENCIES: Record<WorkspaceId, readonly ToolName[]> = {
+  bilibili: ["bbdown"],
+  network: ["yt-dlp"],
+  music: ["musicdl", "python"],
+  media: ["ffmpeg"]
+};
 
 export default function App() {
   const [route, setRoute] = useState<AppRoute>(DEFAULT_APP_ROUTE);
@@ -68,6 +76,36 @@ export default function App() {
   const missingDependencyCount = backend.dependencies.filter(
     (dependency) => dependency.required && !dependency.available
   ).length;
+
+  // 检测结果就绪前 dependencyMap 为空，此时不显示缺失警示，避免启动瞬间误闪
+  const dependenciesReady = backend.dependencies.length > 0;
+  const missingLabelsFor = (feature: WorkspaceId) =>
+    dependenciesReady
+      ? FEATURE_DEPENDENCIES[feature]
+          .filter((tool) => !backend.dependencyMap.get(tool)?.available)
+          .map((tool) => backend.dependencyMap.get(tool)?.label ?? tool)
+      : [];
+  const openDependencySettings = () => {
+    setLastSettingsPage("dependencies");
+    setRoute({ section: "settings", page: "dependencies" });
+  };
+
+  // 启动后首次检测完成时提醒一次；会话内（含手动重检后）不再重复
+  const dependencyNotifiedRef = useRef(false);
+  useEffect(() => {
+    if (backend.loadingDependencies || !dependenciesReady || dependencyNotifiedRef.current) return;
+    dependencyNotifiedRef.current = true;
+    const missing = backend.dependencies.filter((item) => item.required && !item.available);
+    if (missing.length === 0) return;
+    notifications.show({
+      color: "yellow",
+      title: "依赖未就绪",
+      message: `检测到 ${missing.length} 个必要依赖缺失：${missing
+        .map((item) => item.label)
+        .join("、")}。请前往 设置 → 依赖管理 安装。`,
+      autoClose: false
+    });
+  }, [backend.loadingDependencies, backend.dependencies, dependenciesReady]);
 
   const showError = (error: unknown) => {
     notifications.show({
@@ -180,6 +218,8 @@ export default function App() {
           onSeedConsumed={() => setRerunSeed(null)}
           onRetain={() => markWorkspaceRetained("bilibili", generation)}
           onSubmitted={() => markWorkspaceReleasable("bilibili", generation)}
+          dependencyLabels={missingLabelsFor("bilibili")}
+          onOpenDependencies={openDependencySettings}
         />
       )
     },
@@ -192,6 +232,8 @@ export default function App() {
           onSeedConsumed={() => setRerunSeed(null)}
           onRetain={() => markWorkspaceRetained("network", generation)}
           onSubmitted={() => markWorkspaceReleasable("network", generation)}
+          dependencyLabels={missingLabelsFor("network")}
+          onOpenDependencies={openDependencySettings}
         />
       )
     },
@@ -203,11 +245,12 @@ export default function App() {
           dependency={backend.dependencyMap.get("musicdl") ?? null}
           pythonDependency={backend.dependencyMap.get("python") ?? null}
           defaultOutputDirectory={backend.settings.defaultOutputDirectory}
-          onRefresh={backend.refreshDependencies}
           onPlaylist={downloadMusicPlaylist}
           onDownload={downloadMusic}
           onRetain={() => markWorkspaceRetained("music", generation)}
           onSubmitted={() => markWorkspaceReleasable("music", generation)}
+          dependencyLabels={missingLabelsFor("music")}
+          onOpenDependencies={openDependencySettings}
         />
       )
     },
@@ -222,6 +265,8 @@ export default function App() {
           onNavigatePage={navigateSecondary}
           onRetain={() => markWorkspaceRetained("media", generation)}
           onSubmitted={() => markWorkspaceReleasable("media", generation)}
+          dependencyLabels={missingLabelsFor("media")}
+          onOpenDependencies={openDependencySettings}
         />
       )
     }

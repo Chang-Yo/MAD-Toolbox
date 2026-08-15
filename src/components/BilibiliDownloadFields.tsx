@@ -95,6 +95,7 @@ export function BilibiliDownloadFields({
       </Group>
       <TextInput
         label="输出目录"
+        description="默认保存到系统「下载」目录下的 MADToolbox 文件夹"
         placeholder="留空使用 BBDown 默认目录"
         value={form.outputDirectory}
         onChange={(event) => onUpdate({ outputDirectory: event.currentTarget.value })}

@@ -12,6 +12,7 @@ export function MediaOutputField({ value, disabled, onChange, onBrowse }: MediaO
   return (
     <TextInput
       label="输出目录"
+      description="默认保存到系统「下载」目录下的 MADToolbox 文件夹"
       placeholder="留空则输出到源文件目录"
       value={value}
       onChange={(event) => onChange(event.currentTarget.value)}

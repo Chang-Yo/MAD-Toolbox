@@ -62,7 +62,7 @@ export function GeneralSettingsPage({ settings, onSave }: GeneralSettingsPagePro
             </Text>
           </div>
           <TextInput
-            placeholder="留空使用各工具默认目录"
+            placeholder="留空时各功能页默认使用系统「下载」目录下的 MADToolbox"
             value={directory}
             onChange={(event) => setDirectory(event.currentTarget.value)}
             leftSection={

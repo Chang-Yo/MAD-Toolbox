@@ -7,6 +7,7 @@ import {
 } from "@tabler/icons-react";
 import type { MusicMode } from "../pages/music/configuration";
 import type { SavedTemplate } from "../pages/music/templates";
+import { DependencyMissingBadge } from "./DependencyMissingBadge";
 
 interface MusicPageHeaderProps {
   active: boolean;
@@ -22,6 +23,8 @@ interface MusicPageHeaderProps {
   onTemplateMenuChange: (opened: boolean) => void;
   onSaveTemplate: (name: string) => void;
   onApplyTemplate: (template: SavedTemplate) => void;
+  dependencyLabels?: string[];
+  onOpenDependencies?: () => void;
 }
 
 export function MusicPageHeader({
@@ -37,7 +40,9 @@ export function MusicPageHeader({
   templates,
   onTemplateMenuChange,
   onSaveTemplate,
-  onApplyTemplate
+  onApplyTemplate,
+  dependencyLabels,
+  onOpenDependencies
 }: MusicPageHeaderProps) {
   const promptToSave = () => {
     const name = window.prompt("模板名称");
@@ -46,7 +51,10 @@ export function MusicPageHeader({
 
   return (
     <Group justify="space-between" wrap="nowrap">
-      <Title order={3}>音乐下载</Title>
+      <Group gap="xs" wrap="nowrap">
+        <Title order={3}>音乐下载</Title>
+        <DependencyMissingBadge labels={dependencyLabels} onOpen={onOpenDependencies} />
+      </Group>
       <Group gap="xs" wrap="nowrap">
         {searching && (
           <Button

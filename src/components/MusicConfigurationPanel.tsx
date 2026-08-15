@@ -50,7 +50,8 @@ export function MusicConfigurationPanel({
       <Group grow>
         <TextInput
           label="下载目录"
-          placeholder="留空保存到 下载/MAD Toolbox/Music"
+          description="默认保存到系统「下载」目录下的 MADToolbox 文件夹"
+          placeholder="留空保存到 下载/MADToolbox"
           value={form.outputDirectory}
           onChange={(event) => onChange({ outputDirectory: event.currentTarget.value })}
           leftSection={

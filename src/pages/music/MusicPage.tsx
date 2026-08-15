@@ -13,11 +13,11 @@ import { CollapsibleSection } from "../../components/CollapsibleSection";
 import { MusicAdvancedSettings } from "../../components/MusicAdvancedSettings";
 import { MusicCommandPanel } from "../../components/MusicCommandPanel";
 import { MusicConfigurationPanel } from "../../components/MusicConfigurationPanel";
-import { MusicDependencySetup } from "../../components/MusicDependencySetup";
 import { MusicPageHeader } from "../../components/MusicPageHeader";
 import { MusicSearchResults } from "../../components/MusicSearchResults";
 import { MusicSourcePicker } from "../../components/MusicSourcePicker";
 import type { DependencyStatus, MusicdlPlaylistRequest, TaskSubmitResult } from "../../lib/types";
+import { resolveDefaultOutputDirectory } from "../../lib/platform";
 import { useMusicSessionStore } from "../../stores/music-session";
 import { previewMusicCommand } from "./api";
 import {
@@ -68,11 +68,12 @@ interface MusicPageProps {
   dependency: DependencyStatus | null;
   pythonDependency: DependencyStatus | null;
   defaultOutputDirectory: string | null;
-  onRefresh: () => Promise<unknown>;
   onPlaylist: (request: MusicdlPlaylistRequest) => Promise<TaskSubmitResult>;
   onDownload: (sessionId: string, indices: number[]) => Promise<TaskSubmitResult>;
   onRetain?: () => void;
   onSubmitted?: () => void;
+  dependencyLabels?: string[];
+  onOpenDependencies?: () => void;
 }
 
 export function MusicPage({
@@ -80,11 +81,12 @@ export function MusicPage({
   dependency,
   pythonDependency,
   defaultOutputDirectory,
-  onRefresh,
   onPlaylist,
   onDownload,
   onRetain,
-  onSubmitted
+  onSubmitted,
+  dependencyLabels,
+  onOpenDependencies
 }: MusicPageProps) {
   const [form, setForm] = useState(createPersistedMusicForm);
   const [advancedOpen, advancedToggle] = useDisclosure(false);
@@ -119,11 +121,22 @@ export function MusicPage({
   );
 
   useEffect(() => {
-    if (defaultOutputDirectory) {
+    const fillDefault = (directory: string) =>
       setForm((current) =>
-        current.outputDirectory ? current : { ...current, outputDirectory: defaultOutputDirectory }
+        current.outputDirectory ? current : { ...current, outputDirectory: directory }
       );
+    if (defaultOutputDirectory) {
+      fillDefault(defaultOutputDirectory);
+      return;
     }
+    // 设置未指定时统一回落到 系统「下载」/MADToolbox
+    let canceled = false;
+    void resolveDefaultOutputDirectory().then((directory) => {
+      if (!canceled && directory) fillDefault(directory);
+    });
+    return () => {
+      canceled = true;
+    };
   }, [defaultOutputDirectory]);
 
   // 音乐源选择随改动落盘，下次启动沿用
@@ -266,16 +279,6 @@ export function MusicPage({
     if (typeof directory === "string") updateForm({ outputDirectory: directory });
   };
 
-  if (!(musicdlInstalled && pythonInstalled)) {
-    return (
-      <MusicDependencySetup
-        dependency={dependency}
-        pythonDependency={pythonDependency}
-        onRefresh={onRefresh}
-      />
-    );
-  }
-
   const runDisabled =
     taskSubmitting ||
     (sessionPhase !== "idle" && sessionPhase !== "ready") ||
@@ -304,6 +307,8 @@ export function MusicPage({
         onTemplateMenuChange={setTemplateMenuOpened}
         onSaveTemplate={saveCurrentTemplate}
         onApplyTemplate={useTemplate}
+        dependencyLabels={dependencyLabels}
+        onOpenDependencies={onOpenDependencies}
       />
       <MusicConfigurationPanel
         form={form}

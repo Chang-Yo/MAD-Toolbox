@@ -11,6 +11,7 @@ import {
   type ProbeKind
 } from "../pages/network/api";
 import { defaultNetworkForm, type NetworkFormState } from "../pages/network/form";
+import { resolveDefaultOutputDirectory } from "../lib/platform";
 
 export interface NetworkVideoPageProps {
   active: boolean;
@@ -18,6 +19,8 @@ export interface NetworkVideoPageProps {
   onSeedConsumed?: () => void;
   onRetain?: () => void;
   onSubmitted?: () => void;
+  dependencyLabels?: string[];
+  onOpenDependencies?: () => void;
 }
 
 export interface NetworkProbeResult {
@@ -61,6 +64,20 @@ export function useNetworkVideoWorkspace({
     reviseDraft();
     setForm((current) => ({ ...current, ...patch }));
   };
+
+  // 输出目录默认统一到 系统「下载」/MADToolbox；程序预填不算用户编辑，不推进草稿版本
+  useEffect(() => {
+    let canceled = false;
+    void resolveDefaultOutputDirectory().then((directory) => {
+      if (canceled || !directory) return;
+      setForm((current) =>
+        current.outputDirectory ? current : { ...current, outputDirectory: directory }
+      );
+    });
+    return () => {
+      canceled = true;
+    };
+  }, []);
 
   const setExpertText = (value: string | null) => {
     reviseDraft();

@@ -24,6 +24,8 @@ export function BilibiliPage(props: BilibiliPageProps) {
         onBeginLogin={workspace.beginLogin}
         onSaveTemplate={workspace.saveAsTemplate}
         onApplyTemplate={workspace.applyTemplate}
+        dependencyLabels={props.dependencyLabels}
+        onOpenDependencies={props.onOpenDependencies}
       />
 
       <Stack gap="sm">

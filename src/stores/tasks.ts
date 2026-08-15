@@ -7,7 +7,13 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { create } from "zustand";
 import type { TaskEnvelope, TaskEvent } from "../contracts/types";
-import { applySnapshot, applyTaskEvent, emptyTasksState, removeTasks, type TasksState } from "./tasks.reducer";
+import {
+  applySnapshot,
+  applyTaskEvent,
+  emptyTasksState,
+  removeTasks,
+  type TasksState
+} from "./tasks.reducer";
 
 interface TasksStore extends TasksState {
   ready: boolean;

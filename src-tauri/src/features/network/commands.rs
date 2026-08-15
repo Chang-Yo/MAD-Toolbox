@@ -45,16 +45,20 @@ pub fn network_submit(
         CwdPolicy::Explicit(dir) => Some(std::path::PathBuf::from(dir)),
     };
 
-    // 失败兜底（§2）：解析器发信号，顾问按预先算好的重试计划决定是否重试
+    // 失败兜底（§2）：解析器发信号，顾问按预先算好的重试计划决定是否重试；
+    // 进度行解析出百分比时同步发 Progress 信号驱动任务卡进度条
     let parser = Some(Arc::new(|line: &str| {
+        let mut signals = Vec::new();
+        if let Some(progress) = adapter::parse_progress(line) {
+            signals.push(ParsedSignal::Progress(progress));
+        }
         if adapter::browser_cookie_fallback_requested(line) {
-            vec![ParsedSignal::Custom {
+            signals.push(ParsedSignal::Custom {
                 name: NEEDS_BROWSER_COOKIES_SIGNAL.into(),
                 payload: serde_json::json!({}),
-            }]
-        } else {
-            Vec::new()
+            });
         }
+        signals
     }) as _);
     let on_failure: Option<FailureAdvisor> = adapter::retry_plan(&intent, &ctx).map(|retry| {
         Arc::new(move |report: &crate::core::task::FailureReport| {

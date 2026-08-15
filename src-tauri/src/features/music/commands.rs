@@ -296,17 +296,16 @@ pub(crate) async fn musicdl_download(
     let selected = serde_json::to_string(&indices).map_err(|error| error.to_string())?;
     // 输出目录以搜索会话落盘的 request.json 为准（搜索时已解析默认值），
     // 作为下载任务的工作目录兼任务卡"打开输出位置"的锚点
-    let output_directory = std::fs::read(
-        sessions::search_session_path(&app, &session_id)?.join("request.json"),
-    )
-    .ok()
-    .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
-    .and_then(|value| {
-        value
-            .get("outputDirectory")
-            .and_then(|v| v.as_str())
-            .map(str::to_owned)
-    });
+    let output_directory =
+        std::fs::read(sessions::search_session_path(&app, &session_id)?.join("request.json"))
+            .ok()
+            .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+            .and_then(|value| {
+                value
+                    .get("outputDirectory")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_owned)
+            });
     let task_directory = PreparedSessionDir::task(&app)?;
     let task_state_path = task_directory.path().join("results.pickle");
     std::fs::copy(&source_state_path, &task_state_path)
@@ -334,7 +333,10 @@ pub(crate) async fn musicdl_download(
         argv_redacted: argv.clone(),
         argv,
         cwd: output_directory.clone().map(std::path::PathBuf::from),
-        output_paths: output_directory.clone().map(|d| vec![d]).unwrap_or_default(),
+        output_paths: output_directory
+            .clone()
+            .map(|d| vec![d])
+            .unwrap_or_default(),
         env_path: Some(command_path()),
         intent: TaskIntent::Form(serde_json::json!({
             "musicdl": "download",

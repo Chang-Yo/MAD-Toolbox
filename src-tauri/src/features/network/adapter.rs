@@ -6,7 +6,7 @@
 use super::registry;
 use super::types::{NetworkIntent, NetworkMode};
 use crate::core::adapter::AdapterPlan;
-use crate::core::task::types::{CwdPolicy, Pool, TaskIntent};
+use crate::core::task::types::{CwdPolicy, Pool, TaskIntent, TaskProgress};
 use crate::core::task::RetryPlan;
 
 /// commands.rs 解析好的运行时上下文（工具路径解析不属于纯函数翻译）。
@@ -131,6 +131,27 @@ pub(crate) fn browser_cookie_fallback_requested(line: &str) -> bool {
 
 /// 供 TaskSpec 的解析器：命中特征行时发射 "needs-browser-cookies" 信号，失败顾问据此决定重试。
 pub const NEEDS_BROWSER_COOKIES_SIGNAL: &str = "needs-browser-cookies";
+
+/// 解析 yt-dlp 进度行：`[download]  45.2% of 10.55MiB at 2.35MiB/s ETA 00:03`。
+/// 非 `[download] xx%` 形态（Destination/fragment 等）返回 None。
+/// `\r` 刷新的多次更新共处一行时取最后一段——stream_lines 只按 `\n` 切分。
+pub(crate) fn parse_progress(line: &str) -> Option<TaskProgress> {
+    let line = line
+        .split('\r')
+        .filter(|s| !s.trim().is_empty())
+        .next_back()?;
+    let rest = line.trim().strip_prefix("[download] ")?.trim_start();
+    let (percent, tail) = rest.split_once('%')?;
+    let percent: f64 = percent.trim().parse().ok()?;
+    let detail = tail
+        .trim()
+        .strip_prefix("of ")
+        .map(|s| s.trim().to_string());
+    Some(TaskProgress {
+        percent: Some(percent),
+        detail,
+    })
+}
 
 fn build_argv(
     intent: &NetworkIntent,

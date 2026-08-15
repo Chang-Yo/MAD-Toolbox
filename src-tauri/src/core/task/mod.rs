@@ -36,13 +36,12 @@ use types::{
 pub type LineParser = Arc<dyn Fn(&str) -> Vec<ParsedSignal> + Send + Sync>;
 
 /// 失败重试顾问（§2：工具特有的失败兜底归 adapter）。
-/// 任务以失败退出时，枢纽把退出码与本次运行收集的自定义信号名交给顾问，
+/// 任务以失败退出时，枢纽把本次运行收集的自定义信号名交给顾问，
 /// 顾问返回 Some(新计划) 则在同一任务内重试一次（至多一次）。
 /// 机制在枢纽，知识（何种失败、补什么参数）在 feature adapter。
 pub type FailureAdvisor = Arc<dyn Fn(&FailureReport) -> Option<RetryPlan> + Send + Sync>;
 
 pub struct FailureReport<'a> {
-    pub exit_code: Option<i32>,
     /// 本次运行期间解析器发射过的自定义信号名（如 "needs-browser-cookies"）。
     pub signals: &'a [String],
 }
@@ -59,7 +58,6 @@ pub struct RetryPlan {
 #[derive(Debug, Clone)]
 pub enum ParsedSignal {
     Progress(TaskProgress),
-    OutputPath(String),
     /// §4.2 扩展点：feature 自定义事件（交互式作业向 UI 递交内容）。
     Custom {
         name: String,
@@ -81,7 +79,7 @@ pub struct TaskSpec {
     pub argv_redacted: Vec<String>,
     pub cwd: Option<PathBuf>,
     pub env_path: Option<OsString>,
-    /// 提交时已知的输出位置（feature 侧知识）；运行中解析器发现的路径会追加进来。
+    /// 提交时已知的输出位置（feature 侧知识），作为"打开输出位置"的锚点。
     pub output_paths: Vec<String>,
     /// 已脱敏的意图（feature 侧负责 sanitize——落库前置条件，§4.5）。
     pub intent: TaskIntent,
@@ -598,14 +596,6 @@ impl HubState {
                         progress,
                     });
                 }
-                ParsedSignal::OutputPath(path) => {
-                    if let Some(envelope) = self.envelopes.get_mut(id) {
-                        if !envelope.output_paths.contains(&path) {
-                            envelope.output_paths.push(path);
-                        }
-                        // 落库推迟到退出时——中途崩溃丢输出路径可接受（对账已标 interrupted）
-                    }
-                }
                 ParsedSignal::Custom { name, payload } => {
                     self.sink.emit(&TaskEvent::Custom {
                         task_id: id.to_string(),
@@ -640,7 +630,6 @@ impl HubState {
         if next == TaskStatus::Failed && !run.retried {
             if let Some(advisor) = run.on_failure.clone() {
                 let report = FailureReport {
-                    exit_code: code,
                     signals: &run.signals,
                 };
                 if let Some(retry) = advisor(&report) {

@@ -4,6 +4,7 @@
 //! - 下载/歌单 = 作业：产出 TaskSpec 进任务系统。
 
 use std::sync::atomic::Ordering;
+use std::sync::Arc;
 use std::time::Duration;
 
 use serde::Serialize;
@@ -23,8 +24,31 @@ use crate::core::deps::{command_path, musicdl_python, resolve_tool, ToolName};
 use crate::core::process::spawn_tree;
 use crate::core::query::{JobState, RunResult};
 use crate::core::settings::unified_output_directory;
-use crate::core::task::types::{Feature, Pool, TaskIntent};
-use crate::core::task::{TaskHub, TaskSpec};
+use crate::core::task::types::{Feature, Pool, TaskIntent, TaskProgress};
+use crate::core::task::{LineParser, ParsedSignal, TaskHub, TaskSpec};
+
+/// adapter 逐首下载时输出 `musicdl-progress: 3/20`，据此驱动任务卡进度条。
+fn download_progress_parser() -> LineParser {
+    Arc::new(|line: &str| {
+        let Some(rest) = line.trim().strip_prefix("musicdl-progress: ") else {
+            return Vec::new();
+        };
+        let Some((done, total)) = rest.split_once('/') else {
+            return Vec::new();
+        };
+        let (Ok(done), Ok(total)) = (done.trim().parse::<u64>(), total.trim().parse::<u64>())
+        else {
+            return Vec::new();
+        };
+        if total == 0 || done > total {
+            return Vec::new();
+        }
+        vec![ParsedSignal::Progress(TaskProgress {
+            percent: Some(done as f64 / total as f64 * 100.0),
+            detail: Some(format!("{done}/{total} 首")),
+        })]
+    })
+}
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -338,7 +362,7 @@ pub(crate) async fn musicdl_download(
             "sessionId": session_id,
             "indices": indices,
         })),
-        parser: None,
+        parser: Some(download_progress_parser()),
         on_failure: None,
         cleanup_dir: Some(task_directory.into_path()),
     });
@@ -425,7 +449,7 @@ pub(crate) async fn musicdl_playlist(
             "musicdl": "playlist",
             "playlistUrl": request.playlist_url,
         })),
-        parser: None,
+        parser: Some(download_progress_parser()),
         on_failure: None,
         cleanup_dir: Some(task_directory.into_path()),
     });

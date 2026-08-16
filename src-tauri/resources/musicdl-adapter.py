@@ -10,6 +10,7 @@ import os
 import pickle
 import shutil
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from musicdl import musicdl
 
@@ -65,14 +66,30 @@ def display_result(index, song):
     }
 
 
-def download_flat(client, songs, output_directory):
+def download_threadings(request):
+    threadings = request.get("clientsThreadings") or {}
+    values = [value for value in threadings.values() if isinstance(value, int) and value > 0]
+    return max(values, default=5)
+
+
+def download_flat(client, songs, output_directory, num_threadings):
     if not output_directory:
         raise RuntimeError("Missing music output directory.")
     os.makedirs(output_directory, exist_ok=True)
     for song in songs:
         song.work_dir = output_directory
         song._save_path = None
-    downloaded = client.download(song_infos=songs)
+    # 逐首提交下载：每完成一首打印 musicdl-progress 行，宿主据此更新任务卡进度条；
+    # 单首失败不中断整批，全部失败才报错
+    downloaded = []
+    with ThreadPoolExecutor(max_workers=num_threadings) as pool:
+        futures = [pool.submit(client.download, [song]) for song in songs]
+        for completed, future in enumerate(as_completed(futures), 1):
+            try:
+                downloaded.extend(future.result())
+            except Exception as error:
+                print(f"download failed: {error}", file=sys.stderr)
+            print(f"musicdl-progress: {completed}/{len(songs)}", flush=True)
     if not downloaded:
         raise RuntimeError("musicdl did not download any music.")
     metadata_path = os.path.join(output_directory, "download_results.pkl")
@@ -113,7 +130,9 @@ def download(state_path, selected_json):
         raise RuntimeError("No valid music items were selected.")
     output_directory = state["request"].get("outputDirectory")
     client = build_client(state["request"], os.path.join(os.path.dirname(state_path), "staging"))
-    downloaded = download_flat(client, selected, output_directory)
+    downloaded = download_flat(
+        client, selected, output_directory, download_threadings(state["request"])
+    )
     shutil.rmtree(os.path.join(os.path.dirname(state_path), "staging"), ignore_errors=True)
     print(
         f"musicdl completed: {len(downloaded)} item(s) exported directly to "
@@ -131,7 +150,7 @@ def playlist(request_path):
     songs = client.parseplaylist(request["playlistUrl"])
     if not songs:
         raise RuntimeError("musicdl could not parse any music from this playlist.")
-    downloaded = download_flat(client, songs, request.get("outputDirectory"))
+    downloaded = download_flat(client, songs, request.get("outputDirectory"), download_threadings(request))
     shutil.rmtree(staging_directory, ignore_errors=True)
     print(
         f"musicdl completed: {len(downloaded)} playlist item(s) exported directly "

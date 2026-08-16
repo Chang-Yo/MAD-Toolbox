@@ -66,6 +66,7 @@ export function MusicConfigurationPanel({
         />
         <NumberInput
           label="每源结果数"
+          description="每个音乐源返回的搜索结果条数"
           min={1}
           max={100}
           value={form.searchSize}
@@ -73,6 +74,7 @@ export function MusicConfigurationPanel({
         />
         <NumberInput
           label="每源线程数"
+          description="单个源内的并发请求数，搜索与下载共用"
           min={1}
           max={50}
           value={form.threadCount}
@@ -80,6 +82,7 @@ export function MusicConfigurationPanel({
         />
         <TextInput
           label="代理服务器"
+          description="访问海外源（如 Spotify）时通常需要"
           placeholder="http://127.0.0.1:7890"
           value={form.proxy}
           onChange={(event) => onChange({ proxy: event.currentTarget.value })}

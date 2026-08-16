@@ -1,9 +1,13 @@
-import { Badge, Button, Checkbox, Group, Stack, Table, Text } from "@mantine/core";
+import { Badge, Button, Checkbox, Chip, Group, Stack, Table, Text } from "@mantine/core";
 import { IconDownload } from "@tabler/icons-react";
-import { useMemo, type Dispatch, type SetStateAction } from "react";
-import type { MusicdlSearchResponse } from "../lib/types";
+import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import type { MusicdlSearchResponse, MusicdlSearchResult } from "../lib/types";
 import { musicSourceLabel } from "../pages/music/configuration";
 import type { MusicSessionPhase } from "../stores/music-session";
+
+function resultFormat(result: MusicdlSearchResult): string {
+  return (result.extension || result.codec || "未知格式").toLowerCase();
+}
 
 interface MusicSearchResultsProps {
   response: MusicdlSearchResponse;
@@ -29,9 +33,45 @@ export function MusicSearchResults({
   const selectedSet = useMemo(() => new Set(selected), [selected]);
   const queuedSet = useMemo(() => new Set(queuedIndices), [queuedIndices]);
 
+  const [formats, setFormats] = useState<string[]>([]);
+  useEffect(() => {
+    setFormats([]);
+  }, [response.sessionId]);
+
+  const formatCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const result of response.results) {
+      const format = resultFormat(result);
+      counts.set(format, (counts.get(format) ?? 0) + 1);
+    }
+    return [...counts.entries()].sort((left, right) => right[1] - left[1]);
+  }, [response.results]);
+
+  const visibleResults = useMemo(
+    () =>
+      formats.length
+        ? response.results.filter((result) => formats.includes(resultFormat(result)))
+        : response.results,
+    [response.results, formats]
+  );
+  const allVisibleSelected =
+    visibleResults.length > 0 && visibleResults.every((result) => selectedSet.has(result.index));
+
   const toggleResult = (index: number) => {
     onSelectedChange((current) =>
       current.includes(index) ? current.filter((value) => value !== index) : [...current, index]
+    );
+  };
+
+  const toggleSelectVisible = () => {
+    const visibleIndices = visibleResults.map((result) => result.index);
+    if (allVisibleSelected) {
+      const visible = new Set(visibleIndices);
+      onSelectedChange((current) => current.filter((value) => !visible.has(value)));
+      return;
+    }
+    onSelectedChange((current) =>
+      [...new Set([...current, ...visibleIndices])].sort((a, b) => a - b)
     );
   };
 
@@ -41,8 +81,10 @@ export function MusicSearchResults({
         <Text fw={500}>
           搜索结果
           <Text span size="xs" c="dimmed" ml={8}>
-            {response.results.length} 项 · 已选 {selected.length} 项 · 已入队 {queuedIndices.length}{" "}
-            项
+            {formats.length
+              ? `${visibleResults.length} / ${response.results.length} 项`
+              : `${response.results.length} 项`}{" "}
+            · 已选 {selected.length} 项 · 已入队 {queuedIndices.length} 项
           </Text>
         </Text>
         <Group gap="xs">
@@ -56,18 +98,8 @@ export function MusicSearchResults({
           >
             结束本次搜索
           </Button>
-          <Button
-            size="compact-sm"
-            variant="default"
-            onClick={() =>
-              onSelectedChange(
-                selected.length === response.results.length
-                  ? []
-                  : response.results.map((result) => result.index)
-              )
-            }
-          >
-            {selected.length === response.results.length ? "取消全选" : "全选"}
+          <Button size="compact-sm" variant="default" onClick={toggleSelectVisible}>
+            {allVisibleSelected ? "取消全选" : "全选"}
           </Button>
           <Button
             size="compact-sm"
@@ -91,14 +123,29 @@ export function MusicSearchResults({
           </Button>
         </Group>
       </Group>
+      {formatCounts.length > 1 ? (
+        <Chip.Group multiple value={formats} onChange={setFormats}>
+          <Group gap={6}>
+            {formatCounts.map(([format, count]) => (
+              <Chip key={format} value={format} size="xs">
+                {format} · {count}
+              </Chip>
+            ))}
+          </Group>
+        </Chip.Group>
+      ) : null}
       {response.results.length === 0 ? (
         <Text size="sm" c="dimmed">
           没有找到音乐，请更换关键词、音乐源或登录 Cookie。
         </Text>
+      ) : visibleResults.length === 0 ? (
+        <Text size="sm" c="dimmed">
+          当前格式筛选没有匹配的结果，取消筛选即可查看全部。
+        </Text>
       ) : (
         <Table highlightOnHover verticalSpacing={6}>
           <Table.Tbody>
-            {response.results.map((result) => {
+            {visibleResults.map((result) => {
               const checked = selectedSet.has(result.index);
               const queued = queuedSet.has(result.index);
               return (

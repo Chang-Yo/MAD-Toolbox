@@ -2,6 +2,15 @@
 
 All notable changes to MAD Toolbox are documented here.
 
+## 0.7.3
+
+- 🔥feat: 增加了一键下载依赖缺失功能
+
+## 0.7.2
+
+- 🐛fix: BBDown Login Modal关闭后界面无响应
+- 🫟chore: Replace the taskPage Icon
+
 ## 0.7.1
 
 - 🐛fix: 修复任务卡片删除按钮无响应

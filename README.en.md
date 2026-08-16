@@ -75,7 +75,7 @@ tools with WinGet:
 ```powershell
 winget install --id Gyan.FFmpeg -e
 winget install --id yt-dlp.yt-dlp -e
-winget install --id MediaArea.MediaInfo.CLI -e
+winget install --id MediaArea.MediaInfo -e
 winget install --id DenoLand.Deno -e
 ```
 

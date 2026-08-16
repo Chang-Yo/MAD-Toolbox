@@ -105,7 +105,7 @@ impl ToolName {
                     "winget install --id Gyan.FFmpeg -e --accept-package-agreements --accept-source-agreements",
                 ),
                 Self::Mediainfo => Some(
-                    "winget install --id MediaArea.MediaInfo.CLI -e --accept-package-agreements --accept-source-agreements",
+                    "winget install --id MediaArea.MediaInfo -e --accept-package-agreements --accept-source-agreements",
                 ),
                 Self::Deno => Some(
                     "winget install --id DenoLand.Deno -e --accept-package-agreements --accept-source-agreements",

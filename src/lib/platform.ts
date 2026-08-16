@@ -64,7 +64,7 @@ export const toolInstallCommands: Partial<Record<ToolName, string>> = {
     ? `winget install --id yt-dlp.yt-dlp -e ${WINGET_ACCEPT}`
     : "brew install yt-dlp",
   mediainfo: isWindows
-    ? `winget install --id MediaArea.MediaInfo.CLI -e ${WINGET_ACCEPT}`
+    ? `winget install --id MediaArea.MediaInfo -e ${WINGET_ACCEPT}`
     : "brew install media-info",
   deno: isWindows ? `winget install --id DenoLand.Deno -e ${WINGET_ACCEPT}` : "brew install deno",
   python: isWindows

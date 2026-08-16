@@ -119,7 +119,7 @@ const rustTarget = target === "windows" ? "x86_64-pc-windows-msvc" : "aarch64-ap
 run("cargo", ["check", "--manifest-path", "src-tauri/Cargo.toml", "--target", rustTarget]);
 
 if (target === "windows") {
-  run("pwsh.exe", [
+  run("powershell.exe", [
     "-NoProfile",
     "-ExecutionPolicy",
     "Bypass",

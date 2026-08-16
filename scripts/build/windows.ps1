@@ -7,17 +7,23 @@ param(
 
 # Windows packaging entry. Runs on Windows PowerShell 5.1; PowerShell 7 is not
 # required. Invoked by scripts/build/build.js, which already ran the TypeScript
-# and cargo preflight checks.
+# and cargo preflight checks. Like windows-tools.ps1, this script sticks to
+# PowerShell language constructs and .NET APIs because cmdlets from importable
+# modules (ConvertFrom-Json, Split-Path, Set-Location, ...) are unavailable
+# when module loading is broken.
 $ErrorActionPreference = "Stop"
-$ProjectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-Set-Location -LiteralPath $ProjectRoot
+$ProjectRoot = [System.IO.Path]::GetDirectoryName([System.IO.Path]::GetDirectoryName($PSScriptRoot))
+[System.IO.Directory]::SetCurrentDirectory($ProjectRoot)
 
-& (Join-Path $PSScriptRoot "windows-tools.ps1") -Edition $Edition
+& ([System.IO.Path]::Combine($PSScriptRoot, "windows-tools.ps1")) -Edition $Edition
 
-# Windows PowerShell 5.1 pipes a ConvertFrom-Json array through as a single
+# The tauri arguments are a JSON array of strings. JavaScriptSerializer is
+# used instead of ConvertFrom-Json (Microsoft.PowerShell.Utility cmdlet), and
+# Windows PowerShell 5.1 pipes a deserialized array through as a single
 # object instead of enumerating it, so collect the entries explicitly.
+$null = [System.Reflection.Assembly]::Load("System.Web.Extensions, Version=4.0.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35")
 $TauriArgs = @()
-$ParsedArgs = $TauriArgsJson | ConvertFrom-Json
+$ParsedArgs = [System.Web.Script.Serialization.JavaScriptSerializer]::new().DeserializeObject($TauriArgsJson)
 if ($null -ne $ParsedArgs) {
   foreach ($Item in @($ParsedArgs)) {
     if ($null -ne $Item) { $TauriArgs += [string]$Item }

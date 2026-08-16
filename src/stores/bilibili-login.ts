@@ -128,6 +128,8 @@ export const useBilibiliLoginStore = create<BilibiliLoginStore>((set, get) => {
       return startPromise;
     },
 
-    dismissQr: () => set({ qrDataUrl: null })
+    // 关闭二维码弹窗 = 放弃本次登录：立即复位，页面不再卡在「等待扫码」。
+    // 后台轮询至多 180s 自行超时；若用户关窗前已扫码，凭证仍会正常写入（只是无 UI 回执）。
+    dismissQr: () => set({ phase: "idle", jobId: null, qrDataUrl: null })
   };
 });

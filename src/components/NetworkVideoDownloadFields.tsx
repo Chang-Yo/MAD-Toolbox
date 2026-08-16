@@ -15,13 +15,16 @@ interface NetworkVideoDownloadFieldsProps {
   disabled: boolean;
   onUpdate: (patch: Partial<NetworkFormState>) => void;
   onPickOutputDirectory: () => Promise<void>;
+  /** 设置页的全局代理；已设置时作为占位提示，留空提交即使用它 */
+  globalProxy?: string | null;
 }
 
 export function NetworkVideoDownloadFields({
   form,
   disabled,
   onUpdate,
-  onPickOutputDirectory
+  onPickOutputDirectory,
+  globalProxy
 }: NetworkVideoDownloadFieldsProps) {
   return (
     <>
@@ -91,7 +94,7 @@ export function NetworkVideoDownloadFields({
       <Group grow>
         <TextInput
           label="代理"
-          placeholder="留空使用系统代理"
+          placeholder={globalProxy ?? "留空使用系统代理"}
           value={form.proxy}
           onChange={(event) => onUpdate({ proxy: event.currentTarget.value })}
           disabled={disabled}

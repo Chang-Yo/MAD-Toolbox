@@ -68,6 +68,8 @@ interface MusicPageProps {
   dependency: DependencyStatus | null;
   pythonDependency: DependencyStatus | null;
   defaultOutputDirectory: string | null;
+  /** 设置页的全局代理；已设置时作为占位提示，留空提交即使用它 */
+  globalProxy: string | null;
   onPlaylist: (request: MusicdlPlaylistRequest) => Promise<TaskSubmitResult>;
   onDownload: (sessionId: string, indices: number[]) => Promise<TaskSubmitResult>;
   onRetain?: () => void;
@@ -81,6 +83,7 @@ export function MusicPage({
   dependency,
   pythonDependency,
   defaultOutputDirectory,
+  globalProxy,
   onPlaylist,
   onDownload,
   onRetain,
@@ -314,6 +317,7 @@ export function MusicPage({
         form={form}
         onChange={updateForm}
         onPickOutputDirectory={() => void pickOutputDirectory()}
+        globalProxy={globalProxy}
       />
       <MusicSourcePicker sources={form.sources} onChange={(sources) => updateForm({ sources })} />
       <CollapsibleSection

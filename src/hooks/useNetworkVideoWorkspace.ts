@@ -21,6 +21,8 @@ export interface NetworkVideoPageProps {
   onSubmitted?: () => void;
   dependencyLabels?: string[];
   onOpenDependencies?: () => void;
+  /** 设置页的全局代理；留空提交时代理即经环境变量下发 */
+  globalProxy?: string | null;
 }
 
 export interface NetworkProbeResult {

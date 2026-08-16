@@ -230,6 +230,7 @@ export default function App() {
           onSubmitted={() => markWorkspaceReleasable("network", generation)}
           dependencyLabels={missingLabelsFor("network")}
           onOpenDependencies={openDependencySettings}
+          globalProxy={backend.settings.proxy}
         />
       )
     },
@@ -241,6 +242,7 @@ export default function App() {
           dependency={backend.dependencyMap.get("musicdl") ?? null}
           pythonDependency={backend.dependencyMap.get("python") ?? null}
           defaultOutputDirectory={backend.settings.defaultOutputDirectory}
+          globalProxy={backend.settings.proxy}
           onPlaylist={downloadMusicPlaylist}
           onDownload={downloadMusic}
           onRetain={() => markWorkspaceRetained("music", generation)}

@@ -119,13 +119,27 @@ pub struct TreeChild {
     killer: TreeKiller,
 }
 
+/// 全局代理下发给子进程：yt-dlp/musicdl 的 Python 网络栈与 BBDown 的 .NET 栈
+/// （macOS 上不读系统代理）都认这三个环境变量；表单里显式填写的代理
+/// （如 yt-dlp `--proxy`、musicdl 的 requests overrides）优先级更高，不受影响。
+pub fn apply_proxy_env(cmd: &mut Command, proxy: Option<&str>) {
+    let Some(proxy) = proxy.map(str::trim).filter(|p| !p.is_empty()) else {
+        return;
+    };
+    cmd.env("HTTP_PROXY", proxy);
+    cmd.env("HTTPS_PROXY", proxy);
+    cmd.env("ALL_PROXY", proxy);
+}
+
 /// spawn 一个纳入树管辖的子进程：stdio 管道化、stdin 关闭、无控制台窗口。
 /// `env_path`：注入的 PATH（复用现有 command_path() 的增广逻辑）。
+/// `proxy`：全局代理（设置页），经环境变量下发。
 pub fn spawn_tree(
     program: &Path,
     argv: &[String],
     cwd: Option<&Path>,
     env_path: Option<&OsStr>,
+    proxy: Option<&str>,
 ) -> io::Result<TreeChild> {
     let mut cmd = Command::new(program);
     cmd.args(argv)
@@ -139,6 +153,7 @@ pub fn spawn_tree(
     if let Some(path) = env_path {
         cmd.env("PATH", path);
     }
+    apply_proxy_env(&mut cmd, proxy);
     #[cfg(windows)]
     cmd.creation_flags(CREATE_NO_WINDOW);
     #[cfg(unix)]

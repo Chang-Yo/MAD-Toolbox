@@ -14,12 +14,15 @@ interface MusicConfigurationPanelProps {
   form: MusicFormState;
   onChange: (patch: MusicFormPatch) => void;
   onPickOutputDirectory: () => void;
+  /** 设置页的全局代理；已设置时作为占位提示，留空提交即使用它 */
+  globalProxy?: string | null;
 }
 
 export function MusicConfigurationPanel({
   form,
   onChange,
-  onPickOutputDirectory
+  onPickOutputDirectory,
+  globalProxy
 }: MusicConfigurationPanelProps) {
   return (
     <Stack gap="sm">
@@ -83,7 +86,7 @@ export function MusicConfigurationPanel({
         <TextInput
           label="代理服务器"
           description="访问海外源（如 Spotify）时通常需要"
-          placeholder="http://127.0.0.1:7890"
+          placeholder={globalProxy ?? "http://127.0.0.1:7890"}
           value={form.proxy}
           onChange={(event) => onChange({ proxy: event.currentTarget.value })}
         />

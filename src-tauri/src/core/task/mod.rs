@@ -20,9 +20,11 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use chrono::Utc;
+use tauri::AppHandle;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::core::process::{spawn_tree, stream_lines, TreeKiller};
+use crate::core::settings::load_app_settings;
 use logfile::TaskLogWriter;
 use scheduler::{select_dispatch, PoolCaps, PoolUsage, QueuedView};
 use sink::EventSink;
@@ -153,6 +155,7 @@ impl TaskHub {
         sink: Arc<dyn EventSink>,
         caps: PoolCaps,
         logs_dir: PathBuf,
+        app: AppHandle,
     ) -> Self {
         let _ = store.reconcile();
         let (tx, rx) = mpsc::unbounded_channel();
@@ -161,6 +164,7 @@ impl TaskHub {
             sink,
             caps,
             logs_dir,
+            app,
             queue: Vec::new(),
             envelopes: HashMap::new(),
             pending: HashMap::new(),
@@ -237,6 +241,8 @@ struct HubState {
     sink: Arc<dyn EventSink>,
     caps: PoolCaps,
     logs_dir: PathBuf,
+    /// spawn 时读取设置页的全局代理下发给工具进程。
+    app: AppHandle,
     /// 有序队列：queued 任务的全局顺序（§4.4 单一队列）。
     queue: Vec<String>,
     /// 本会话任务的内存镜像（含 progress 等瞬态）。
@@ -265,9 +271,10 @@ fn spawn_and_stream(
     argv: &[String],
     cwd: Option<&std::path::Path>,
     env_path: Option<&std::ffi::OsStr>,
+    proxy: Option<&str>,
     tx: &mpsc::UnboundedSender<HubMsg>,
 ) -> std::io::Result<TreeKiller> {
-    let mut child = spawn_tree(tool_path, argv, cwd, env_path)?;
+    let mut child = spawn_tree(tool_path, argv, cwd, env_path, proxy)?;
     let killer = child.killer();
     let stdout = child.take_stdout();
     let stderr = child.take_stderr();
@@ -461,6 +468,7 @@ impl HubState {
             &pending.argv,
             pending.cwd.as_deref(),
             pending.env_path.as_deref(),
+            load_app_settings(&self.app).proxy.as_deref(),
             tx,
         ) {
             Ok(killer) => {
@@ -639,6 +647,7 @@ impl HubState {
                         &retry.argv,
                         run.cwd.as_deref(),
                         run.env_path.as_deref(),
+                        load_app_settings(&self.app).proxy.as_deref(),
                         tx,
                     ) {
                         Ok(killer) => {

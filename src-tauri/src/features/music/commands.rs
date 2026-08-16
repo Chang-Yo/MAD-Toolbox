@@ -23,7 +23,7 @@ use super::{cli, runtime};
 use crate::core::deps::{command_path, musicdl_python, resolve_tool, ToolName};
 use crate::core::process::spawn_tree;
 use crate::core::query::{JobState, RunResult};
-use crate::core::settings::unified_output_directory;
+use crate::core::settings::{load_app_settings, unified_output_directory};
 use crate::core::task::types::{Feature, Pool, TaskIntent, TaskProgress};
 use crate::core::task::{LineParser, ParsedSignal, TaskHub, TaskSpec};
 
@@ -131,7 +131,8 @@ pub(crate) async fn musicdl_search(
         state_path.to_string_lossy().into_owned(),
     ];
     let env_path = command_path();
-    let mut child = spawn_tree(&python, &argv, None, Some(&env_path))
+    let proxy = load_app_settings(&app).proxy;
+    let mut child = spawn_tree(&python, &argv, None, Some(&env_path), proxy.as_deref())
         .map_err(|error| format!("无法启动 musicdl 搜索：{error}"))?;
     let stdout = child.take_stdout();
     let stderr = child.take_stderr();

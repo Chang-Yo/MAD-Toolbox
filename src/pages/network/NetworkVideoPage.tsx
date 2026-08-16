@@ -32,6 +32,7 @@ export function NetworkVideoPage(props: NetworkVideoPageProps) {
           disabled={workspace.expertMode}
           onUpdate={workspace.update}
           onPickOutputDirectory={workspace.pickOutputDirectory}
+          globalProxy={props.globalProxy}
         />
       </Stack>
 

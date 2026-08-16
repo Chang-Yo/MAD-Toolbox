@@ -27,10 +27,10 @@ pub fn run() {
                     .map(|n| n.get())
                     .unwrap_or(4),
             };
-            let sink = std::sync::Arc::new(core::task::sink::TauriSink::new(handle));
+            let sink = std::sync::Arc::new(core::task::sink::TauriSink::new(handle.clone()));
             let logs_dir = data_dir.join("logs");
             let hub = tauri::async_runtime::block_on(async move {
-                core::task::TaskHub::new(store, sink, caps, logs_dir)
+                core::task::TaskHub::new(store, sink, caps, logs_dir, handle)
             });
             app.manage(hub);
             app.manage(caps);

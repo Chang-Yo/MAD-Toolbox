@@ -11,6 +11,7 @@ use tokio::sync::Semaphore;
 use super::adapter::{self, NetworkCtx, ProbeKind, NEEDS_BROWSER_COOKIES_SIGNAL};
 use crate::core::adapter::{preview_result, PreviewResult, SubmitResult};
 use crate::core::deps::{command_path, resolve_tool, ToolName};
+use crate::core::settings::load_app_settings;
 use crate::core::task::types::{CwdPolicy, Feature, TaskIntent};
 use crate::core::task::{FailureAdvisor, ParsedSignal, TaskHub, TaskSpec};
 
@@ -119,6 +120,7 @@ pub async fn network_probe(
         .stderr(std::process::Stdio::piped())
         .kill_on_drop(true);
     crate::core::process::hide_window(&mut cmd);
+    crate::core::process::apply_proxy_env(&mut cmd, load_app_settings(&app).proxy.as_deref());
 
     let output = tokio::time::timeout(PROBE_TIMEOUT, cmd.output())
         .await

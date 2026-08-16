@@ -5,6 +5,8 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
+#[cfg(any(target_os = "windows", target_os = "macos"))]
+use tauri::Emitter;
 use tauri::{AppHandle, Manager};
 use tokio::{
     process::Command,
@@ -90,6 +92,45 @@ impl ToolName {
 
     fn required(&self) -> bool {
         !matches!(self, Self::Ffprobe | Self::Musicdl | Self::Python)
+    }
+
+    /// 一键安装命令（Windows 用 winget，macOS 用 Homebrew）；bbdown 仅认内置副本、ffprobe 随 FFmpeg 分发，均不支持。
+    fn install_command(&self) -> Option<&'static str> {
+        if cfg!(target_os = "windows") {
+            match self {
+                Self::YtDlp => Some(
+                    "winget install --id yt-dlp.yt-dlp -e --accept-package-agreements --accept-source-agreements",
+                ),
+                Self::Ffmpeg => Some(
+                    "winget install --id Gyan.FFmpeg -e --accept-package-agreements --accept-source-agreements",
+                ),
+                Self::Mediainfo => Some(
+                    "winget install --id MediaArea.MediaInfo.CLI -e --accept-package-agreements --accept-source-agreements",
+                ),
+                Self::Deno => Some(
+                    "winget install --id DenoLand.Deno -e --accept-package-agreements --accept-source-agreements",
+                ),
+                Self::Python => Some(
+                    "winget install --id Python.Python.3.13 -e --accept-package-agreements --accept-source-agreements",
+                ),
+                Self::Musicdl => Some(
+                    "winget install --id Python.Python.3.13 -e --accept-package-agreements --accept-source-agreements && py -m pip install --user --upgrade pipx && py -m pipx ensurepath && py -m pipx install musicdl",
+                ),
+                _ => None,
+            }
+        } else {
+            match self {
+                Self::YtDlp => Some("brew install yt-dlp"),
+                Self::Ffmpeg => Some("brew install ffmpeg"),
+                Self::Mediainfo => Some("brew install media-info"),
+                Self::Deno => Some("brew install deno"),
+                Self::Python => Some("brew install python"),
+                Self::Musicdl => {
+                    Some("brew install python pipx && pipx ensurepath && pipx install musicdl")
+                }
+                _ => None,
+            }
+        }
     }
 }
 
@@ -549,6 +590,79 @@ pub(crate) async fn dependency_status(app: AppHandle) -> Vec<DependencyStatus> {
         });
     }
     statuses
+}
+
+/// 在独立控制台窗口执行安装命令，窗口结束后返回子进程供等待；pause 让用户看完输出再按键关闭。
+#[cfg(target_os = "windows")]
+fn launch_install(command: &str) -> Result<tokio::process::Child, String> {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NEW_CONSOLE: u32 = 0x0000_0010;
+    let script =
+        format!("{command} & echo. & echo 安装命令执行完毕，按任意键关闭本窗口 & pause >nul");
+    let mut builder = Command::new("cmd.exe");
+    builder.arg("/C").arg(script);
+    builder.as_std_mut().creation_flags(CREATE_NEW_CONSOLE);
+    builder
+        .spawn()
+        .map_err(|error| format!("无法打开终端窗口：{error}"))
+}
+
+/// 在 Terminal 新窗口执行安装命令，命令结束后标签页自动关闭。
+#[cfg(target_os = "macos")]
+fn launch_install(command: &str) -> Result<(), String> {
+    let script =
+        format!("tell application \"Terminal\"\nactivate\ndo script \"{command}; exit\"\nend tell");
+    let status = std::process::Command::new("osascript")
+        .args(["-e", &script])
+        .status()
+        .map_err(|error| format!("无法打开终端窗口：{error}"))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err("Terminal 执行安装脚本失败".into())
+    }
+}
+
+/// 一键安装：立即打开终端窗口执行 winget/Homebrew 命令并返回；安装流程结束后
+/// 发出 dependency-install-finished 事件（Windows：控制台窗口关闭；macOS：轮询到工具出现在系统 PATH）。
+#[tauri::command]
+pub(crate) async fn dependency_install(app: AppHandle, tool: ToolName) -> Result<(), String> {
+    let command = tool
+        .install_command()
+        .ok_or_else(|| "该工具不支持一键安装".to_string())?;
+    let handle = app.clone();
+    #[cfg(target_os = "windows")]
+    {
+        let mut child = launch_install(command)?;
+        tauri::async_runtime::spawn(async move {
+            if child.wait().await.is_ok() {
+                let _ = handle.emit("dependency-install-finished", tool);
+            }
+        });
+    }
+    #[cfg(target_os = "macos")]
+    {
+        launch_install(command)?;
+        let executable = tool.executable().to_string();
+        tauri::async_runtime::spawn(async move {
+            // Terminal 的 do script 拿不到完成事件，改为轮询系统 PATH；安装完成后
+            // 二进制会出现在 command_path 覆盖的 brew/pipx 目录中
+            let deadline = tokio::time::Instant::now() + Duration::from_secs(30 * 60);
+            while tokio::time::Instant::now() < deadline {
+                tokio::time::sleep(Duration::from_secs(3)).await;
+                if find_system_binary(&executable).is_some() {
+                    let _ = handle.emit("dependency-install-finished", tool);
+                    break;
+                }
+            }
+        });
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        let _ = (handle, command);
+        return Err("当前平台不支持一键安装".into());
+    }
+    Ok(())
 }
 
 #[tauri::command]

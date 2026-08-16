@@ -1,25 +1,36 @@
-import { Badge, Button, Card, Group, Stack, Text } from "@mantine/core";
-import { IconCircleCheck, IconRefresh } from "@tabler/icons-react";
+import { useState } from "react";
+import { ActionIcon, Badge, Button, Card, Group, Stack, Text, Tooltip } from "@mantine/core";
+import { IconCircleCheck, IconDownload, IconRefresh } from "@tabler/icons-react";
+import { isWindows, toolInstallCommands } from "../lib/platform";
 import type { DependencyStatus } from "../lib/types";
+import { CollapsibleSection } from "./CollapsibleSection";
 
 interface DependencyStatusPanelProps {
   dependencies: DependencyStatus[];
   loading: boolean;
   onRefresh: () => void;
+  onInstall: (dependency: DependencyStatus) => void;
 }
 
-/** 状态列表：汇总徽标 + 重新检测 + 逐工具来源/版本/路径；缺失工具的安装引导由 DependencyInstallCards 承担。 */
+/**
+ * 状态列表：默认折叠只显示汇总徽标，展开逐工具三行（名称/版本/路径）；
+ * 缺失且可装的工具在列表项右侧（列表外）提供一键安装；安装引导卡由 DependencyInstallCards 承担。
+ */
 export function DependencyStatusPanel({
   dependencies,
   loading,
-  onRefresh
+  onRefresh,
+  onInstall
 }: DependencyStatusPanelProps) {
+  const [opened, setOpened] = useState(false);
   const missing = dependencies.filter((item) => item.required && !item.available);
 
   return (
-    <Stack gap="sm">
-      <Group justify="space-between" wrap="nowrap">
-        {missing.length > 0 ? (
+    <CollapsibleSection
+      opened={opened}
+      onToggle={() => setOpened((value) => !value)}
+      title={
+        missing.length > 0 ? (
           <Badge variant="light" color="yellow">
             {missing.length} 个必要工具未就绪
           </Badge>
@@ -27,7 +38,9 @@ export function DependencyStatusPanel({
           <Badge variant="light" color="teal" leftSection={<IconCircleCheck size={12} />}>
             必要工具均已就绪
           </Badge>
-        )}
+        )
+      }
+      action={
         <Button
           size="compact-sm"
           variant="subtle"
@@ -37,43 +50,67 @@ export function DependencyStatusPanel({
         >
           重新检测
         </Button>
-      </Group>
+      }
+    >
       <Stack gap="xs">
-        {dependencies.map((dependency) => (
-          <Card key={dependency.tool} withBorder padding="sm">
-            <Group justify="space-between" align="flex-start" wrap="nowrap">
-              <div style={{ flex: "1 1 auto", minWidth: 0 }}>
-                <Group gap="xs">
-                  <Text size="sm" fw={600}>
-                    {dependency.label}
-                  </Text>
-                  {!dependency.required && (
-                    <Badge size="xs" variant="light" color="gray" style={{ flexShrink: 0 }}>
-                      可选
+        {dependencies.map((dependency) => {
+          const installable =
+            !dependency.available && Boolean(toolInstallCommands[dependency.tool]);
+          return (
+            <Group key={dependency.tool} gap="xs" wrap="nowrap" align="center">
+              <Card withBorder padding="sm" style={{ flex: "1 1 auto", minWidth: 0 }}>
+                <Stack gap={2}>
+                  <Group justify="space-between" wrap="nowrap">
+                    <Group gap="xs" wrap="nowrap">
+                      <Text size="sm" fw={600}>
+                        {dependency.label}
+                      </Text>
+                      {!dependency.required && (
+                        <Badge size="xs" variant="light" color="gray" style={{ flexShrink: 0 }}>
+                          可选
+                        </Badge>
+                      )}
+                    </Group>
+                    <Badge
+                      color={dependency.available ? "teal" : "yellow"}
+                      variant="light"
+                      style={{ flexShrink: 0 }}
+                    >
+                      {dependency.available
+                        ? dependency.source === "bundled"
+                          ? "应用内置"
+                          : "系统"
+                        : "未就绪"}
                     </Badge>
-                  )}
-                </Group>
-                <Text size="xs" c="dimmed" truncate>
-                  {dependency.available
-                    ? [dependency.version, dependency.path].filter(Boolean).join(" · ") || "已检测"
-                    : dependency.installHint || "未找到可用版本"}
-                </Text>
-              </div>
-              <Badge
-                color={dependency.available ? "teal" : "yellow"}
-                variant="light"
-                style={{ flexShrink: 0 }}
-              >
-                {dependency.available
-                  ? dependency.source === "bundled"
-                    ? "应用内置"
-                    : "系统"
-                  : "未就绪"}
-              </Badge>
+                  </Group>
+                  <Text size="xs" c="dimmed" truncate>
+                    {dependency.available ? (dependency.version ?? "版本未知") : "未安装"}
+                  </Text>
+                  <Text size="xs" c="dimmed" truncate>
+                    {dependency.available
+                      ? (dependency.path ?? "路径未知")
+                      : (dependency.installHint ?? "未找到可用版本")}
+                  </Text>
+                </Stack>
+              </Card>
+              {installable && (
+                <Tooltip label={`一键安装（${isWindows ? "winget" : "Homebrew"}）`} position="top">
+                  <ActionIcon
+                    variant="light"
+                    color="teal"
+                    radius="md"
+                    size="xl"
+                    aria-label={`一键安装 ${dependency.label}`}
+                    onClick={() => onInstall(dependency)}
+                  >
+                    <IconDownload size={18} />
+                  </ActionIcon>
+                </Tooltip>
+              )}
             </Group>
-          </Card>
-        ))}
+          );
+        })}
       </Stack>
-    </Stack>
+    </CollapsibleSection>
   );
 }

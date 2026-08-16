@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import type { AppSettings, DependencyStatus, ToolName } from "../lib/types";
 
 /**
@@ -39,6 +40,16 @@ export function useBackend() {
     void refreshDependencies();
     void refreshSettings();
   }, [refreshDependencies, refreshSettings]);
+
+  // 一键安装流程结束后（终端窗口关闭 / 系统PATH检测到工具）自动重新检测依赖
+  useEffect(() => {
+    const promise = listen("dependency-install-finished", () => {
+      void refreshDependencies();
+    });
+    return () => {
+      void promise.then((unlisten) => unlisten());
+    };
+  }, [refreshDependencies]);
 
   const dependencyMap = useMemo(
     () => new Map<ToolName, DependencyStatus>(dependencies.map((item) => [item.tool, item])),

@@ -41,6 +41,7 @@ pub fn run() {
             core::settings::app_settings,
             core::settings::save_app_settings,
             core::deps::dependency_status,
+            core::deps::dependency_install,
             core::task::commands::task_export_diagnostics,
             core::deps::ffmpeg_encoders,
             features::music::commands::musicdl_preview,

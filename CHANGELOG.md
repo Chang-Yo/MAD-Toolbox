@@ -2,7 +2,7 @@
 
 All notable changes to MAD Toolbox are documented here.
 
-## 0.7.3
+## 0.8.0
 
 - 🔥feat: 增加了一键下载依赖缺失功能
 

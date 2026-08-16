@@ -118,27 +118,27 @@ export function TasksPage({ onRerun }: TasksPageProps) {
   return (
     <Stack gap="md" p="md">
       <Title order={3}>任务中心</Title>
+      <Card withBorder padding="lg">
+        <Stack gap="md" align="center">
+          <Group justify="center" gap="12%" w="100%" wrap="nowrap">
+            <HeroStat label="运行中" value={hero.active} color="orange" />
+            <HeroStat label="中断" value={hero.interrupted} color="yellow" />
+            <HeroStat label="结束" value={hero.finished} color="gray" />
+          </Group>
+          <Box w="100%">
+            <PoolIndicator
+              definitions={definitions}
+              occupancy={(pool) => poolOccupancy(state, pool)}
+            />
+          </Box>
+        </Stack>
+      </Card>
       {sorted.length === 0 ? (
         <Text c="dimmed" size="sm">
           还没有任务。从功能页提交下载后会出现在这里。
         </Text>
       ) : (
         <>
-          <Card withBorder padding="lg">
-            <Stack gap="md" align="center">
-              <Group justify="center" gap="12%" w="100%" wrap="nowrap">
-                <HeroStat label="运行中" value={hero.active} color="orange" />
-                <HeroStat label="中断" value={hero.interrupted} color="yellow" />
-                <HeroStat label="结束" value={hero.finished} color="gray" />
-              </Group>
-              <Box w="100%">
-                <PoolIndicator
-                  definitions={definitions}
-                  occupancy={(pool) => poolOccupancy(state, pool)}
-                />
-              </Box>
-            </Stack>
-          </Card>
           {today.length > 0 && (
             <CollapsibleSection
               title={

@@ -1,6 +1,6 @@
 import {
   IconBrandBilibili,
-  IconGauge,
+  IconListCheck,
   IconMovie,
   IconMusic,
   IconSettings,
@@ -24,7 +24,7 @@ export interface L2NavigationItem<
 }
 
 export const L1_NAVIGATION = [
-  { section: "tasks", label: "任务中心", icon: IconGauge },
+  { section: "tasks", label: "任务中心", icon: IconListCheck },
   { section: "bilibili", label: "哔哩哔哩下载", icon: IconBrandBilibili },
   { section: "network", label: "网络视频下载", icon: IconWorldDownload },
   { section: "media", label: "媒体处理", icon: IconMovie },

@@ -2,6 +2,11 @@
 
 All notable changes to MAD Toolbox are documented here.
 
+## 0.9.0
+
+- 🔥feat: 增加了 Music 搜索结果页文件格式过滤功能
+- 🐛fix: 全局代理无法起效且feature page的代理提示文字无法及时更新
+
 ## 0.8.0
 
 - 🔥feat: 增加了一键下载依赖缺失功能

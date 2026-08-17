@@ -4,6 +4,7 @@ import { IconCircleCheck, IconDownload, IconRefresh } from "@tabler/icons-react"
 import { isWindows, toolInstallCommands } from "../../lib/platform";
 import type { DependencyStatus } from "../../contracts/dependency";
 import { CollapsibleSection } from "./CollapsibleSection";
+import { FieldWithActions } from "./FieldWithActions";
 
 interface DependencyStatusPanelProps {
   dependencies: DependencyStatus[];
@@ -57,8 +58,29 @@ export function DependencyStatusPanel({
           const installable =
             !dependency.available && Boolean(toolInstallCommands[dependency.tool]);
           return (
-            <Group key={dependency.tool} gap="xs" wrap="nowrap" align="center">
-              <Card withBorder padding="sm" style={{ flex: "1 1 auto", minWidth: 0 }}>
+            // stretch：安装按钮随内容卡片拉满整行高度，与左侧卡片边缘对齐
+            <FieldWithActions
+              key={dependency.tool}
+              align="stretch"
+              actions={
+                installable && (
+                  <Tooltip label={`一键安装（${isWindows ? "winget" : "Homebrew"}）`} position="top">
+                    <ActionIcon
+                      variant="light"
+                      color="teal"
+                      radius="md"
+                      size="xl"
+                      style={{ height: "auto" }}
+                      aria-label={`一键安装 ${dependency.label}`}
+                      onClick={() => onInstall(dependency)}
+                    >
+                      <IconDownload size={18} />
+                    </ActionIcon>
+                  </Tooltip>
+                )
+              }
+            >
+              <Card withBorder padding="sm">
                 <Stack gap={2}>
                   <Group justify="space-between" wrap="nowrap">
                     <Group gap="xs" wrap="nowrap">
@@ -93,21 +115,7 @@ export function DependencyStatusPanel({
                   </Text>
                 </Stack>
               </Card>
-              {installable && (
-                <Tooltip label={`一键安装（${isWindows ? "winget" : "Homebrew"}）`} position="top">
-                  <ActionIcon
-                    variant="light"
-                    color="teal"
-                    radius="md"
-                    size="xl"
-                    aria-label={`一键安装 ${dependency.label}`}
-                    onClick={() => onInstall(dependency)}
-                  >
-                    <IconDownload size={18} />
-                  </ActionIcon>
-                </Tooltip>
-              )}
-            </Group>
+            </FieldWithActions>
           );
         })}
       </Stack>

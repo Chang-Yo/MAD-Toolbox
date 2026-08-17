@@ -1,10 +1,11 @@
-import { Badge, Button, Group, SegmentedControl, Stack, Text, Title } from "@mantine/core";
+import { Badge, Button, Group, Stack, Text, Title } from "@mantine/core";
 import { IconInfoCircle, IconPlayerPlay } from "@tabler/icons-react";
 import type { MediaPageId } from "../../app/route";
 import { MEDIA_L2_NAVIGATION } from "../../app/navigation";
 import { useMediaWorkspace, type MediaWorkspacePageProps } from "./useMediaWorkspace";
 import { CollapsibleSection } from "../../components/common/CollapsibleSection";
 import { DependencyMissingBadge } from "../../components/common/DependencyMissingBadge";
+import { L2TabNav } from "../../components/common/L2TabNav";
 import { MediaAdvancedFields } from "./MediaAdvancedFields";
 import { MediaCommandPanel } from "./MediaCommandPanel";
 import { MediaDropzone } from "./MediaDropzone";
@@ -25,8 +26,8 @@ interface MediaWorkspaceProps extends MediaWorkspacePageProps {
 }
 
 /**
- * 媒体工作流区（单一常驻工作区）：SegmentedControl 位于标题行与拖拽区之间，
- * 为常驻单实例，切换工作流时指示条平滑滑动；
+ * 媒体工作流区（单一常驻工作区）：通栏页签导航（L2TabNav）位于标题行与拖拽区之间，
+ * 为常驻单实例，切换工作流时激活段平滑淡入淡出；
  * 表单草稿由 useMediaWorkspace 在 page 变化时于渲染期重置。
  */
 export function MediaWorkspace({
@@ -65,12 +66,10 @@ export function MediaWorkspace({
         </Group>
       </Group>
 
-      <SegmentedControl
-        w="100%"
-        radius="md"
-        data={MEDIA_L2_NAVIGATION.map(({ page: value, label }) => ({ value, label }))}
+      <L2TabNav
+        items={MEDIA_L2_NAVIGATION}
         value={page}
-        onChange={(value) => onNavigatePage?.(value as MediaPageId)}
+        onChange={(next) => onNavigatePage?.(next)}
         aria-label="选择媒体处理工作流"
       />
 

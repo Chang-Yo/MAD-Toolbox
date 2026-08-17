@@ -48,10 +48,6 @@ export function DependenciesSettingsPage({
 
   return (
     <Stack gap="md" maw={900}>
-      <Text size="sm" c="dimmed">
-        各命令行工具的来源、版本与安装状态；当前为 {isWindows ? "Windows" : "macOS"}{" "}
-        {distributionMode} 构建。
-      </Text>
       <div>
         <Text fw={500}>工具版本来源</Text>
         <Text size="xs" c="dimmed">
@@ -59,7 +55,7 @@ export function DependenciesSettingsPage({
         </Text>
         <SegmentedControl
           mt="sm"
-          w="100%"
+          w={320}
           radius="md"
           value={settings.dependencyPreference}
           onChange={(value) => void changePreference(value)}

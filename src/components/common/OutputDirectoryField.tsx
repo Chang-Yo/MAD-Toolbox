@@ -1,5 +1,6 @@
-import { TextInput, Tooltip } from "@mantine/core";
+import { ActionIcon, Input, Tooltip } from "@mantine/core";
 import { IconFolderOpen } from "@tabler/icons-react";
+import { FieldWithActions } from "./FieldWithActions";
 
 interface OutputDirectoryFieldProps {
   value: string;
@@ -18,18 +19,34 @@ export function OutputDirectoryField({
   onBrowse
 }: OutputDirectoryFieldProps) {
   return (
-    <TextInput
-      label="输出目录"
-      description="默认保存到系统「下载」目录下的 MADToolbox 文件夹"
-      placeholder={placeholder}
-      value={value}
-      onChange={(event) => onChange(event.currentTarget.value)}
-      disabled={disabled}
-      leftSection={
-        <Tooltip label="选择目录">
-          <IconFolderOpen size={16} style={{ cursor: "pointer" }} onClick={() => void onBrowse()} />
-        </Tooltip>
-      }
-    />
+    // Input.Wrapper 承担 label/description，组合行内的按钮才能与输入框同高对齐
+    <Input.Wrapper label="输出目录" description="默认保存到系统「下载」目录下的 MADToolbox 文件夹">
+      {/* 有 label 时 Input 会自带 5px 上边距（label→输入框的间距），落在组合行内部会让
+          输入框与按钮错位：在 Input 上抵消，改由整行承担同样的间距 */}
+      <FieldWithActions
+        mt="calc(var(--mantine-spacing-xs) / 2)"
+        actions={
+          <Tooltip label="选择目录">
+            <ActionIcon
+              variant="default"
+              size="input-sm"
+              disabled={disabled}
+              aria-label="选择输出目录"
+              onClick={() => void onBrowse()}
+            >
+              <IconFolderOpen size={16} stroke={1.7} />
+            </ActionIcon>
+          </Tooltip>
+        }
+      >
+        <Input
+          placeholder={placeholder}
+          value={value}
+          onChange={(event) => onChange(event.currentTarget.value)}
+          disabled={disabled}
+          style={{ marginTop: 0 }}
+        />
+      </FieldWithActions>
+    </Input.Wrapper>
   );
 }

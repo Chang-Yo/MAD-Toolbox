@@ -5,6 +5,7 @@ import { Fragment, type ReactNode } from "react";
 import organizationLogo from "../../assets/organization_logo.png";
 import appIcon from "../../../src-tauri/icons/icon.png";
 import packageInfo from "../../../package.json";
+import { FieldWithActions } from "../../components/common/FieldWithActions";
 
 const TEAM_LINKS = [
   { name: "开发者名单", url: "https://github.com/MAD-Producer/MAD-Toolbox/graphs/contributors" },
@@ -46,8 +47,28 @@ interface AboutListRowProps {
 
 function AboutListRow({ primary, secondary, leading, href }: AboutListRowProps) {
   return (
-    <Group justify="space-between" wrap="nowrap" gap="sm" py="sm">
-      <Group gap="sm" wrap="nowrap" style={{ flex: "1 1 auto", minWidth: 0 }}>
+    <FieldWithActions
+      py="sm"
+      actions={
+        href && (
+          <Tooltip
+            label={href}
+            position="top"
+            openDelay={200}
+            events={{ hover: true, focus: true, touch: false }}
+          >
+            <ActionIcon
+              variant="default"
+              aria-label={`打开 ${primary}`}
+              onClick={() => void openUrl(href)}
+            >
+              <IconExternalLink size={16} stroke={1.7} />
+            </ActionIcon>
+          </Tooltip>
+        )
+      }
+    >
+      <Group gap="sm" wrap="nowrap">
         {leading}
         <div style={{ minWidth: 0 }}>
           <Text size="sm" fw={500}>
@@ -60,24 +81,7 @@ function AboutListRow({ primary, secondary, leading, href }: AboutListRowProps) 
           )}
         </div>
       </Group>
-      {href && (
-        <Tooltip
-          label={href}
-          position="top"
-          openDelay={200}
-          events={{ hover: true, focus: true, touch: false }}
-        >
-          <ActionIcon
-            variant="subtle"
-            color="gray"
-            aria-label={`打开 ${primary}`}
-            onClick={() => void openUrl(href)}
-          >
-            <IconExternalLink size={16} />
-          </ActionIcon>
-        </Tooltip>
-      )}
-    </Group>
+    </FieldWithActions>
   );
 }
 

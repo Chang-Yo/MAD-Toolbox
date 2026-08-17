@@ -110,6 +110,17 @@
   font-weight: 500;
 }
 
+/* 页签上的警示计数（纯数字）：非激活取黄色语义色（浅色主题为深黄阶、深色主题为浅黄阶），
+   激活段为蓝底，改用亮黄保证可读 */
+.l2-tabnav .l2-tabnav-count {
+  color: var(--mantine-color-yellow-light-color);
+  font-weight: 500;
+}
+
+.l2-tabnav .mantine-SegmentedControl-control[data-active] .l2-tabnav-count {
+  color: #ffd43b;
+}
+
 /* 全局 chrome 画布：顶栏与工作区四周的底色。工作区面板向中间缩进后以此形成
    层级——亮色取浅灰一档，暗色沿用 body 底色（比工作区面板更深）。 */
 .app-chrome {

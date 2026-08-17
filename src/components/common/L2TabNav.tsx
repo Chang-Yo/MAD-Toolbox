@@ -1,4 +1,4 @@
-import { Badge, SegmentedControl } from "@mantine/core";
+import { SegmentedControl } from "@mantine/core";
 
 interface L2TabNavProps<PageId extends string> {
   items: readonly { page: PageId; label: string }[];
@@ -31,15 +31,13 @@ export function L2TabNav<PageId extends string>({
         const badge = badges?.[page] ?? 0;
         return {
           value: page,
-          // 角标为行内胶囊（Badge），随文本排布不遮挡；黄色警示与顶栏入口同语言。
-          // 用 inline-flex 的 span 让“文本+角标”整体像纯文本一样被页签居中
+          // 缺失数为纯数字（无胶囊底），颜色按激活/非激活分别取黄色警示色，
+          // 见 styles/animations.css 的 .l2-tabnav-count
           label:
             badge > 0 ? (
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <span style={{ display: "inline-flex", alignItems: "baseline", gap: 6 }}>
                 {label}
-                <Badge size="xs" variant="light" color="yellow">
-                  {badge}
-                </Badge>
+                <span className="l2-tabnav-count">{badge}</span>
               </span>
             ) : (
               label

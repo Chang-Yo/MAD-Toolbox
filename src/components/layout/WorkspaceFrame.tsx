@@ -41,7 +41,6 @@ export function WorkspaceFrame({ navigation, children }: WorkspaceFrameProps) {
           minWidth: 0,
           minHeight: 0,
           overflow: "auto",
-          background: "var(--mantine-color-default)",
           borderRadius: "10px"
         }}
       >

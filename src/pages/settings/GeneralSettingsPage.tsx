@@ -12,14 +12,30 @@ import {
 } from "@mantine/core";
 import { notifications } from "../../lib/notifications";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { IconDeviceFloppy, IconFolderOpen } from "@tabler/icons-react";
-import { useEffect, useState } from "react";
+import {
+  IconDeviceDesktop,
+  IconDeviceFloppy,
+  IconFolderOpen,
+  IconMoon,
+  IconSun
+} from "@tabler/icons-react";
+import { useEffect, useState, type ReactNode } from "react";
 import { FieldWithActions } from "../../components/common/FieldWithActions";
 import type { AppSettings } from "./api";
 
 interface GeneralSettingsPageProps {
   settings: AppSettings;
   onSave: (settings: AppSettings) => Promise<AppSettings>;
+}
+
+/** 主题选项的「图标 + 文案」标签：inline-flex 随 label 的 text-align:center 整体居中 */
+function themeOptionLabel(icon: ReactNode, text: string) {
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+      {icon}
+      {text}
+    </span>
+  );
 }
 
 export function GeneralSettingsPage({ settings, onSave }: GeneralSettingsPageProps) {
@@ -106,9 +122,18 @@ export function GeneralSettingsPage({ settings, onSave }: GeneralSettingsPagePro
           value={colorScheme}
           onChange={(value) => setColorScheme(value as MantineColorScheme)}
           data={[
-            { value: "light", label: "浅色" },
-            { value: "dark", label: "深色" },
-            { value: "auto", label: "跟随系统" }
+            {
+              value: "light",
+              label: themeOptionLabel(<IconSun size={15} stroke={1.7} />, "浅色")
+            },
+            {
+              value: "dark",
+              label: themeOptionLabel(<IconMoon size={15} stroke={1.7} />, "深色")
+            },
+            {
+              value: "auto",
+              label: themeOptionLabel(<IconDeviceDesktop size={15} stroke={1.7} />, "跟随系统")
+            }
           ]}
         />
       </div>

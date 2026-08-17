@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
+import { useMantineColorScheme } from "@mantine/core";
 import { notifications } from "../lib/notifications";
 import { useBackend } from "../hooks/useBackend";
 import { useTasksStore } from "../stores/tasks";
 import type { ToolName } from "../contracts/dependency";
 import type { TaskEnvelope } from "../contracts/types";
+import { syncNativeWindowTheme } from "./api";
 import { AppShell } from "../components/layout/AppShell";
 import { SplashScreen } from "../components/layout/SplashScreen";
 import {
@@ -84,6 +86,13 @@ export default function App() {
   useEffect(() => {
     if (route.section !== "settings") setLastMainSection(route.section);
   }, [route.section]);
+
+  // 原生窗口主题（标题栏颜色）跟随主题选择：auto 时解除固定由系统驱动，
+  // 页面内容侧则由 Mantine 依据 prefers-color-scheme 自行解析
+  const { colorScheme } = useMantineColorScheme();
+  useEffect(() => {
+    void syncNativeWindowTheme(colorScheme);
+  }, [colorScheme]);
 
   // 首屏只等前端挂载：依赖检测启动即发起但在后台进行，完成后各界面
   // （缺失徽标、依赖页、警示通知）自行刷新，不阻塞进入主界面

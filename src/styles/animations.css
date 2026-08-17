@@ -122,13 +122,13 @@
 }
 
 /* 全局 chrome 画布：顶栏与工作区四周的底色。工作区面板向中间缩进后以此形成
-   层级——亮色取浅灰一档，暗色沿用 body 底色（比工作区面板更深）。 */
+   层级——亮色取浅灰一档，暗色取 dark-8（比 body 底色的工作区面板更深）。 */
 .app-chrome {
   background: var(--mantine-color-gray-1);
 }
 
 [data-mantine-color-scheme="dark"] .app-chrome {
-  background: var(--mantine-color-body);
+  background: var(--mantine-color-dark-8);
 }
 
 /* 顶栏应用标题：Sinter 暂缺字体文件，先由 Arial 承接；
@@ -145,9 +145,14 @@
   color: var(--mantine-color-blue-3);
 }
 
-/* 工作区画布：暗色主题下抬亮一档，保持与顶栏 chrome 的层次 */
+/* 工作区画布：亮色取 default 底色，暗色取 body 底色（#1D1D20，dark 色阶第 7 级），
+   保持与顶栏 chrome（dark-8）的层次 */
+.workspace-surface {
+  background: var(--mantine-color-default);
+}
+
 [data-mantine-color-scheme="dark"] .workspace-surface {
-  background: #2f3137;
+  background: var(--mantine-color-body);
 }
 
 /* 任务运行中的分区取绿色（沿袭 green-light-color），置于激活规则之后使其优先 */

@@ -64,7 +64,10 @@ export function DependencyStatusPanel({
               align="stretch"
               actions={
                 installable && (
-                  <Tooltip label={`一键安装（${isWindows ? "winget" : "Homebrew"}）`} position="top">
+                  <Tooltip
+                    label={`一键安装（${isWindows ? "winget" : "Homebrew"}）`}
+                    position="top"
+                  >
                     <ActionIcon
                       variant="light"
                       color="teal"

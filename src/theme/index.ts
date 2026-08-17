@@ -1,12 +1,13 @@
 import { createTheme } from "@mantine/core";
-import { blue } from "./colors";
+import { blue, dark } from "./colors";
 
 // 清爽基调：blue 主色只出现在激活态与主按钮，其余交给留白与细边框
 export const theme = createTheme({
   primaryColor: "blue",
   defaultRadius: "md",
   colors: {
-    blue
+    blue,
+    dark
   },
   components: {
     // 去掉 Mantine v9 默认的选项间 1px 分隔线（withItemsBorders 默认 true），

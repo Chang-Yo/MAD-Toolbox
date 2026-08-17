@@ -7,7 +7,7 @@ import {
   IconChevronRight,
   IconFileMusic,
   IconNetwork,
-  IconQrcode,
+  IconQrcode
 } from "@tabler/icons-react";
 
 const DISMISSED_AT_KEY = "mad-toolbox:startup-tips-dismissed-at";

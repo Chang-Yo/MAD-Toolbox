@@ -1,44 +1,25 @@
 /* 通知外观（配合 lib/notifications.ts 注入的类型类）：
-   纯色低饱和底 + 白色圆盘内的高对比深色图标 + 文本 + 右侧关闭按钮的三段式水平布局。
-   未列出的类型回退到 info。变量按浅/深色主题分别取值。 */
+   主题色浅底 + 同色系图标 + 文本 + 右侧关闭按钮的三段式水平布局，
+   底部一条与驻留时长同步的倒计时条。未列出的类型回退到 info。
+   底色/图标色取 Mantine 的 -light / -light-color 变量，浅深主题自动切换。 */
 .app-notification--success {
-  --app-notification-bg: #e2f1e2;
-  --app-notification-icon: #1e7a41;
+  --app-notification-bg: var(--mantine-color-green-light);
+  --app-notification-icon: var(--mantine-color-green-light-color);
 }
 
 .app-notification--warning {
-  --app-notification-bg: #fbf1d7;
-  --app-notification-icon: #96690f;
+  --app-notification-bg: var(--mantine-color-yellow-light);
+  --app-notification-icon: var(--mantine-color-yellow-light-color);
 }
 
 .app-notification--error {
-  --app-notification-bg: #fae5e2;
-  --app-notification-icon: #b03a2e;
+  --app-notification-bg: var(--mantine-color-red-light);
+  --app-notification-icon: var(--mantine-color-red-light-color);
 }
 
 .app-notification--info {
-  --app-notification-bg: #e4edf7;
-  --app-notification-icon: #2f6199;
-}
-
-[data-mantine-color-scheme="dark"] .app-notification--success {
-  --app-notification-bg: #1d2c22;
-  --app-notification-icon: #7bd69b;
-}
-
-[data-mantine-color-scheme="dark"] .app-notification--warning {
-  --app-notification-bg: #2e2716;
-  --app-notification-icon: #e3b95c;
-}
-
-[data-mantine-color-scheme="dark"] .app-notification--error {
-  --app-notification-bg: #301d1b;
-  --app-notification-icon: #ef9086;
-}
-
-[data-mantine-color-scheme="dark"] .app-notification--info {
-  --app-notification-bg: #1c2634;
-  --app-notification-icon: #85b3ec;
+  --app-notification-bg: var(--mantine-color-blue-light);
+  --app-notification-icon: var(--mantine-color-blue-light-color);
 }
 
 /* 选择器带属性选择器抬一档特异性，覆盖 Mantine 默认的白/深灰卡片底色 */
@@ -58,9 +39,10 @@
   --app-notification-text: var(--mantine-color-dark-2);
 }
 
-/* 图标容器：改为白色圆盘，图标继承各类型的高对比深色（尺寸沿用默认 28px 圆） */
+/* 图标容器：Mantine 默认给 28px 圆形底（filled 语义色），与浅色底不协调，
+   改为与通知条同底色（视觉上圆盘消失，仅剩图标本身） */
 .app-notification .app-notification-icon {
-  background-color: var(--mantine-color-white);
+  background-color: var(--app-notification-bg);
   color: var(--app-notification-icon);
 }
 
@@ -70,4 +52,33 @@
 
 .app-notification .app-notification-description {
   color: var(--app-notification-text);
+}
+
+/* 倒计时条：贴通知底边，右端随时间向左收回，时长与 autoClose 同步
+   （--app-notification-lifetime 由 lib/notifications.ts 按类型注入） */
+.app-notification--timed {
+  position: relative;
+}
+
+.app-notification--timed::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background-color: var(--app-notification-icon);
+  border-bottom-left-radius: inherit;
+  border-bottom-right-radius: inherit;
+  transform-origin: left center;
+  animation: app-notification-countdown var(--app-notification-lifetime) linear forwards;
+}
+
+@keyframes app-notification-countdown {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
 }

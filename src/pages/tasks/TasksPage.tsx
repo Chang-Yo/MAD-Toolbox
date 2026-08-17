@@ -49,12 +49,6 @@ export function TasksPage({ onRerun }: TasksPageProps) {
   const [exiting, setExiting] = useState<ReadonlySet<string>>(() => new Set());
 
   useEffect(() => {
-    if (import.meta.env.DEV && !("__TAURI_INTERNALS__" in window)) {
-      void import("../../../mock/tasks.mock")
-        .then((m) => setDefinitions(m.MOCK_POOLS))
-        .catch(() => {});
-      return;
-    }
     void fetchPoolDefinitions()
       .then(setDefinitions)
       .catch(() => {});

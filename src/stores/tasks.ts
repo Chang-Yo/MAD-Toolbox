@@ -33,13 +33,6 @@ export const useTasksStore = create<TasksStore>((set, get) => ({
   init: async () => {
     if (initStarted) return;
     initStarted = true;
-    // 浏览器预览（无 Tauri 后端）时注入 mock 任务便于观察 UI；
-    // 生产构建中该分支被常量折叠剔除，mock 文件不进 bundle
-    if (import.meta.env.DEV && !("__TAURI_INTERNALS__" in window)) {
-      const { injectTaskMocks } = await import("../../mock/tasks.mock");
-      injectTaskMocks();
-      return;
-    }
     await listen<TaskEvent>("task-event", (event) => {
       set((state) => applyTaskEvent(state, event.payload));
     });

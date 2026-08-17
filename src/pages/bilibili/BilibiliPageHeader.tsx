@@ -1,11 +1,18 @@
 import { Button, Group, Menu, Title } from "@mantine/core";
-import { IconChevronDown, IconDeviceFloppy, IconPlayerPlay, IconQrcode } from "@tabler/icons-react";
+import {
+  IconChevronDown,
+  IconCircleCheck,
+  IconDeviceFloppy,
+  IconPlayerPlay,
+  IconQrcode
+} from "@tabler/icons-react";
 import type { SavedTemplate } from "./templates";
 import { DependencyMissingBadge } from "../../components/common/DependencyMissingBadge";
 
 interface BilibiliPageHeaderProps {
   active: boolean;
   loginPhase: "idle" | "starting" | "running";
+  loggedIn: boolean;
   submitting: boolean;
   submitDisabled: boolean;
   onSubmit: () => void;
@@ -22,6 +29,7 @@ interface BilibiliPageHeaderProps {
 export function BilibiliPageHeader({
   active,
   loginPhase,
+  loggedIn,
   submitting,
   submitDisabled,
   onSubmit,
@@ -49,15 +57,26 @@ export function BilibiliPageHeader({
         >
           添加到任务队列
         </Button>
-        <Button
-          variant="light"
-          leftSection={<IconQrcode size={16} />}
-          loading={loginPhase === "starting"}
-          disabled={loginPhase !== "idle"}
-          onClick={onBeginLogin}
-        >
-          {loginPhase === "running" ? "等待扫码" : "扫码登录"}
-        </Button>
+        {loggedIn ? (
+          <Button
+            variant="light"
+            color="green"
+            leftSection={<IconCircleCheck size={16} />}
+            disabled
+          >
+            已登录
+          </Button>
+        ) : (
+          <Button
+            variant="light"
+            leftSection={<IconQrcode size={16} />}
+            loading={loginPhase === "starting"}
+            disabled={loginPhase !== "idle"}
+            onClick={onBeginLogin}
+          >
+            {loginPhase === "running" ? "等待扫码" : "扫码登录"}
+          </Button>
+        )}
         <Menu opened={active && templateMenuOpened} onChange={onTemplateMenuChange}>
           <Menu.Target>
             <Button variant="default" rightSection={<IconChevronDown size={14} />}>

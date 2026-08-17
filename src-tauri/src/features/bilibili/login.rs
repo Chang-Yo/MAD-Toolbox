@@ -127,6 +127,31 @@ async fn validate_and_save_bbdown_data(
     save_bbdown_data(data_path, &completed)
 }
 
+/// 本地 `BBDown.data` 须包含 BBDown 必要 Cookie 字段才可能处于登录态。
+fn saved_bbdown_cookie(data_path: &Path) -> Option<String> {
+    let content = std::fs::read_to_string(data_path).ok()?;
+    let fields = content
+        .split(';')
+        .filter_map(|pair| pair.split_once('='))
+        .map(|(key, value)| (key.trim().to_string(), value.trim().to_string()))
+        .collect::<HashMap<_, _>>();
+    has_required_bbdown_cookie(&fields).then(|| content.trim().to_string())
+}
+
+/// 查询当前登录态：文件缺失、字段不全或在线校验未通过（含 Cookie 过期、
+/// 网络不可用）一律收敛为未登录；只有请求客户端本身构造失败才走 Err。
+pub(crate) async fn bbdown_login_status(working_dir: &Path) -> Result<bool, String> {
+    let Some(cookie) = saved_bbdown_cookie(&working_dir.join("BBDown.data")) else {
+        return Ok(false);
+    };
+    let client = Client::builder()
+        .user_agent(BBDOWN_USER_AGENT)
+        .timeout(Duration::from_secs(5))
+        .build()
+        .map_err(|error| format!("初始化 B站登录请求失败：{error}"))?;
+    Ok(validate_bbdown_cookie(&client, &cookie).await.is_ok())
+}
+
 async fn generate_bbdown_qr(client: &Client) -> Result<(String, String), String> {
     let response = client
         .get(BBDOWN_QR_GENERATE_URL)

@@ -22,6 +22,16 @@ pub(crate) async fn bilibili_login_start(app: AppHandle) -> Result<RunResult, St
     login::spawn_bbdown_login_job(app, working_dir).await
 }
 
+/// 查询当前 B站登录态：读取本地 BBDown.data 并在线校验 Cookie 是否仍有效，
+/// 供页头按钮区分「扫码登录 / 已登录」。
+#[tauri::command]
+pub(crate) async fn bilibili_login_status(app: AppHandle) -> Result<bool, String> {
+    let (executable, _) = resolve_tool(&app, &ToolName::Bbdown)
+        .ok_or_else(|| "未找到 BBDown，请先在依赖页安装".to_string())?;
+    let working_dir = login::bbdown_directory(&executable)?;
+    login::bbdown_login_status(&working_dir).await
+}
+
 #[tauri::command]
 pub fn bilibili_preview(intent: TaskIntent) -> Result<PreviewResult, String> {
     let plan = adapter::plan(&intent).map_err(|e| e.to_string())?;

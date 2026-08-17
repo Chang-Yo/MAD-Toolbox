@@ -15,6 +15,7 @@ export function BilibiliPage(props: BilibiliPageProps) {
       <BilibiliPageHeader
         active={workspace.active}
         loginPhase={workspace.loginPhase}
+        loggedIn={workspace.loginLoggedIn}
         submitting={workspace.submitting}
         submitDisabled={!workspace.expertMode && !workspace.preview}
         onSubmit={() => void workspace.submit()}

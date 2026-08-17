@@ -28,3 +28,7 @@ export function bilibiliSubmit(intent: TaskIntent): Promise<SubmitResult> {
 export function bilibiliLoginStart(): Promise<RunResult> {
   return invoke<RunResult>("bilibili_login_start");
 }
+
+export function bilibiliLoginStatus(): Promise<boolean> {
+  return invoke<boolean>("bilibili_login_status");
+}

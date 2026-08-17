@@ -42,7 +42,9 @@ export function useBilibiliWorkspace({
   const [templates, setTemplates] = useState<SavedTemplate[]>(() => loadTemplates(localStorage));
   const loginQr = useBilibiliLoginStore((state) => state.qrDataUrl);
   const loginPhase = useBilibiliLoginStore((state) => state.phase);
+  const loginLoggedIn = useBilibiliLoginStore((state) => state.loggedIn);
   const startLogin = useBilibiliLoginStore((state) => state.start);
+  const refreshLoginStatus = useBilibiliLoginStore((state) => state.refresh);
   const dismissLoginQr = useBilibiliLoginStore((state) => state.dismissQr);
   const draftRevisionRef = useRef(0);
   const previewStateRef = useRef<RevisionedPreview | null>(null);
@@ -100,6 +102,11 @@ export function useBilibiliWorkspace({
   useEffect(() => {
     if (!active) setTemplateMenuOpened(false);
   }, [active]);
+
+  // 每次进入页面都重新读取落盘登录态：覆盖「上次会话已登录」「关窗后后台扫码完成」等场景
+  useEffect(() => {
+    if (active) void refreshLoginStatus();
+  }, [active, refreshLoginStatus]);
 
   useEffect(() => {
     if (!active || expertText !== null) return;
@@ -205,6 +212,7 @@ export function useBilibiliWorkspace({
     saveAsTemplate,
     loginQr,
     loginPhase,
+    loginLoggedIn,
     beginLogin,
     dismissLoginQr,
     pickOutputDirectory

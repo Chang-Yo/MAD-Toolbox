@@ -5,7 +5,7 @@
  * 另附资源池定义（后端拉不到）与若干往日任务用于历史折叠区。
  */
 
-import type { PoolDefinition } from "../src/components/PoolIndicator";
+import type { PoolDefinition } from "../src/pages/tasks/api";
 import type { TaskEnvelope } from "../src/contracts/types";
 import { useTasksStore } from "../src/stores/tasks";
 import type { TaskLogLine } from "../src/stores/tasks.reducer";

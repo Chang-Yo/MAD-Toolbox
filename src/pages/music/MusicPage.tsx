@@ -9,17 +9,17 @@ import { notifications } from "../../lib/notifications";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { IconAlertTriangle } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CollapsibleSection } from "../../components/CollapsibleSection";
-import { MusicAdvancedSettings } from "../../components/MusicAdvancedSettings";
-import { MusicCommandPanel } from "../../components/MusicCommandPanel";
-import { MusicConfigurationPanel } from "../../components/MusicConfigurationPanel";
-import { MusicPageHeader } from "../../components/MusicPageHeader";
-import { MusicSearchResults } from "../../components/MusicSearchResults";
-import { MusicSourcePicker } from "../../components/MusicSourcePicker";
-import type { DependencyStatus, MusicdlPlaylistRequest, TaskSubmitResult } from "../../lib/types";
+import { CollapsibleSection } from "../../components/common/CollapsibleSection";
+import { MusicAdvancedSettings } from "./MusicAdvancedSettings";
+import { MusicCommandPanel } from "./MusicCommandPanel";
+import { MusicConfigurationPanel } from "./MusicConfigurationPanel";
+import { MusicPageHeader } from "./MusicPageHeader";
+import { MusicSearchResults } from "./MusicSearchResults";
+import { MusicSourcePicker } from "./MusicSourcePicker";
+import type { DependencyStatus } from "../../contracts/dependency";
 import { resolveDefaultOutputDirectory } from "../../lib/platform";
 import { useMusicSessionStore } from "../../stores/music-session";
-import { previewMusicCommand } from "./api";
+import { previewMusicCommand, type MusicdlPlaylistRequest, type SubmitResult } from "./api";
 import {
   applyMusicTemplate,
   createInitialMusicForm,
@@ -70,8 +70,8 @@ interface MusicPageProps {
   defaultOutputDirectory: string | null;
   /** 设置页的全局代理；已设置时作为占位提示，留空提交即使用它 */
   globalProxy: string | null;
-  onPlaylist: (request: MusicdlPlaylistRequest) => Promise<TaskSubmitResult>;
-  onDownload: (sessionId: string, indices: number[]) => Promise<TaskSubmitResult>;
+  onPlaylist: (request: MusicdlPlaylistRequest) => Promise<SubmitResult>;
+  onDownload: (sessionId: string, indices: number[]) => Promise<SubmitResult>;
   onRetain?: () => void;
   onSubmitted?: () => void;
   dependencyLabels?: string[];

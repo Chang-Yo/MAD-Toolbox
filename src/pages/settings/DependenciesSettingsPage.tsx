@@ -1,10 +1,10 @@
 import { SegmentedControl, Stack, Text } from "@mantine/core";
 import { notifications } from "../../lib/notifications";
-import { invoke } from "@tauri-apps/api/core";
-import { DependencyInstallCards } from "../../components/DependencyInstallCards";
-import { DependencyStatusPanel } from "../../components/DependencyStatusPanel";
+import { DependencyInstallCards } from "../../components/common/DependencyInstallCards";
+import { DependencyStatusPanel } from "../../components/common/DependencyStatusPanel";
+import type { DependencyStatus } from "../../contracts/dependency";
 import { isWindows } from "../../lib/platform";
-import type { AppSettings, DependencyStatus } from "../../lib/types";
+import { installDependency, type AppSettings } from "./api";
 
 interface DependenciesSettingsPageProps {
   settings: AppSettings;
@@ -34,9 +34,9 @@ export function DependenciesSettingsPage({
     }
   };
 
-  const installDependency = async (dependency: DependencyStatus) => {
+  const onInstall = async (dependency: DependencyStatus) => {
     try {
-      await invoke("dependency_install", { tool: dependency.tool });
+      await installDependency(dependency.tool);
       notifications.show({
         message: "已打开终端窗口执行安装，完成后将自动重新检测。",
         color: "blue"
@@ -73,7 +73,7 @@ export function DependenciesSettingsPage({
         dependencies={dependencies}
         loading={loading}
         onRefresh={onRefresh}
-        onInstall={(dependency) => void installDependency(dependency)}
+        onInstall={(dependency) => void onInstall(dependency)}
       />
       <DependencyInstallCards dependencies={dependencies} />
     </Stack>

@@ -1,5 +1,5 @@
 import { downloadDir, join } from "@tauri-apps/api/path";
-import type { ToolName } from "./types";
+import type { ToolName } from "../contracts/dependency";
 
 export const isWindows = typeof navigator !== "undefined" && /Windows/i.test(navigator.userAgent);
 

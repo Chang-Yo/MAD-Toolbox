@@ -7,11 +7,11 @@
 
 import { Badge, Box, Button, Card, Group, Stack, Text, Title } from "@mantine/core";
 import { notifications } from "../../lib/notifications";
-import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useMemo, useState } from "react";
-import { CollapsibleSection } from "../../components/CollapsibleSection";
-import { PoolIndicator, type PoolDefinition } from "../../components/PoolIndicator";
-import { TaskCard } from "../../components/TaskCard";
+import { CollapsibleSection } from "../../components/common/CollapsibleSection";
+import { PoolIndicator } from "./PoolIndicator";
+import { TaskCard } from "./TaskCard";
+import { fetchPoolDefinitions, type PoolDefinition } from "./api";
 import type { TaskEnvelope } from "../../contracts/types";
 import { poolOccupancy, sortedTasks, splitByDay } from "../../stores/tasks.reducer";
 import { useTasksStore } from "../../stores/tasks";
@@ -55,7 +55,7 @@ export function TasksPage({ onRerun }: TasksPageProps) {
         .catch(() => {});
       return;
     }
-    void invoke<PoolDefinition[]>("pool_definitions")
+    void fetchPoolDefinitions()
       .then(setDefinitions)
       .catch(() => {});
   }, []);

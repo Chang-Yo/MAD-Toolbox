@@ -3,7 +3,6 @@ import {
   IconListCheck,
   IconMovie,
   IconMusic,
-  IconSettings,
   IconWorldDownload,
   type Icon as TablerIcon
 } from "@tabler/icons-react";
@@ -23,13 +22,13 @@ export interface L2NavigationItem<
   icon?: TablerIcon;
 }
 
+// 设置不属于 L1 导航：入口在顶栏标题右侧（AppShell），为独立设置界面预留
 export const L1_NAVIGATION = [
   { section: "tasks", label: "任务中心", icon: IconListCheck },
   { section: "bilibili", label: "哔哩哔哩下载", icon: IconBrandBilibili },
   { section: "network", label: "网络视频下载", icon: IconWorldDownload },
   { section: "media", label: "媒体处理", icon: IconMovie },
-  { section: "music", label: "音乐下载", icon: IconMusic },
-  { section: "settings", label: "设置", icon: IconSettings }
+  { section: "music", label: "音乐下载", icon: IconMusic }
 ] as const satisfies readonly L1NavigationItem[];
 
 export const MEDIA_L2_NAVIGATION = [

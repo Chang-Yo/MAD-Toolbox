@@ -57,6 +57,7 @@ export default function App() {
   const [route, setRoute] = useState<AppRoute>(DEFAULT_APP_ROUTE);
   const [lastMediaPage, setLastMediaPage] = useState<MediaPageId>("pr-compatible");
   const [lastSettingsPage, setLastSettingsPage] = useState<SettingsPageId>("general");
+  const [lastMainSection, setLastMainSection] = useState<AppSection>("tasks");
   const [rerunSeed, setRerunSeed] = useState<TaskEnvelope | null>(null);
   const [booted, setBooted] = useState(false);
   const [tipsOpened, setTipsOpened] = useState(false);
@@ -78,6 +79,11 @@ export default function App() {
     void initBilibiliLogin();
     void initMusicSession();
   }, [initBilibiliLogin, initMusicSession, initTasksStore]);
+
+  // 设置页顶栏「返回」的目标：记住进入设置前的最后一个主分区（覆盖重跑、依赖跳转等所有入口）
+  useEffect(() => {
+    if (route.section !== "settings") setLastMainSection(route.section);
+  }, [route.section]);
 
   // 首屏只等前端挂载：依赖检测启动即发起但在后台进行，完成后各界面
   // （缺失徽标、依赖页、警示通知）自行刷新，不阻塞进入主界面
@@ -120,8 +126,7 @@ export default function App() {
       title: "依赖未就绪",
       message: `检测到 ${missing.length} 个必要依赖缺失：${missing
         .map((item) => item.label)
-        .join("、")}。请前往 设置 → 依赖 安装。`,
-      autoClose: false
+        .join("、")}。请前往 设置 → 依赖 安装。`
     });
   }, [backend.loadingDependencies, backend.dependencies, dependenciesReady]);
 
@@ -201,7 +206,11 @@ export default function App() {
     }
     if (route.section !== "settings") return null;
     return (
-      <SettingsShell page={route.page} onNavigatePage={navigateSecondary}>
+      <SettingsShell
+        page={route.page}
+        onNavigatePage={navigateSecondary}
+        missingDependencies={missingDependencyCount}
+      >
         {route.page === "general" ? (
           <GeneralSettingsPage settings={backend.settings} onSave={backend.saveSettings} />
         ) : route.page === "dependencies" ? (
@@ -287,7 +296,7 @@ export default function App() {
     }
   ];
 
-  // L2 导航已全部内联到页面：媒体页为页头 SegmentedControl，设置页为悬浮竖排 SegmentedControl
+  // L2 导航已全部内联到页面：媒体页与设置页均为页头通栏页签导航（L2TabNav）
   const secondaryItems: readonly never[] = [];
 
   if (!booted) return <SplashScreen />;
@@ -300,6 +309,7 @@ export default function App() {
         secondaryItems={secondaryItems}
         onNavigatePrimary={navigatePrimary}
         onNavigateSecondary={navigateSecondary}
+        onBackFromSettings={() => navigatePrimary(lastMainSection)}
         navigationStatuses={{
           ...(activeTaskCount > 0
             ? {
@@ -323,7 +333,7 @@ export default function App() {
       >
         <WorkspaceSessionHost activeWorkspace={activeWorkspace} workspaces={workspaces} />
         {activeWorkspace === null ? (
-          // key 仅为 section 级：设置子页切换时不重挂载 Shell，SegmentedControl 指示条得以平滑滑动
+          // key 仅为 section 级：设置子页切换时不重挂载 Shell，SegmentedControl 激活段得以平滑淡入淡出
           <div key={route.section} className="workspace-enter">
             {renderNonWorkspacePage()}
           </div>

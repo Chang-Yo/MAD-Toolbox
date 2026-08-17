@@ -1,4 +1,5 @@
-import { Box } from "@mantine/core";
+import { ActionIcon, Box, Group, Indicator, Title, Tooltip } from "@mantine/core";
+import { IconArrowLeft, IconSettings } from "@tabler/icons-react";
 import type { ReactNode } from "react";
 import type { L1NavigationItem, L2NavigationItem } from "../../app/navigation";
 import type { AppRoute } from "../../app/route";
@@ -17,6 +18,8 @@ interface AppShellProps {
   secondaryItems: readonly L2NavigationItem[];
   onNavigatePrimary: (section: AppSection) => void;
   onNavigateSecondary: (page: SecondaryPage) => void;
+  /** 设置页接管顶栏为「返回 + 页标题」页头时的返回目标 */
+  onBackFromSettings: () => void;
   navigationStatuses?: Partial<Record<AppSection, NavigationStatus>>;
   children: ReactNode;
 }
@@ -25,59 +28,121 @@ function secondaryPage(route: AppRoute): SecondaryPage | null {
   return "page" in route ? route.page : null;
 }
 
+/** 顶栏标题右侧的设置入口：独立于 L1 导航，点击后顶栏切换为设置页专属页头 */
+function HeaderSettingsButton({
+  status,
+  onNavigate
+}: {
+  status?: NavigationStatus;
+  onNavigate: (section: AppSection) => void;
+}) {
+  const label = "设置";
+  return (
+    <Tooltip
+      label={status ? `${label} · ${status.label}` : label}
+      position="bottom"
+      withArrow
+      arrowSize={5}
+      offset={4}
+      openDelay={300}
+      closeDelay={100}
+      events={{ hover: true, focus: true, touch: false }}
+      styles={{ tooltip: { padding: "3px 7px", fontSize: 11, lineHeight: 1.2 } }}
+    >
+      <Indicator
+        disabled={!status || status.count === 0}
+        label={status && status.count > 99 ? "99+" : status?.count}
+        color={status?.color}
+        size={16}
+        offset={3}
+      >
+        <ActionIcon
+          className="app-header-icon"
+          size="lg"
+          radius="md"
+          variant="transparent"
+          color="gray"
+          aria-label={status ? `${label}，${status.label}` : label}
+          onClick={() => onNavigate("settings")}
+        >
+          <IconSettings size={22} stroke={1.7} />
+        </ActionIcon>
+      </Indicator>
+    </Tooltip>
+  );
+}
+
 export function AppShell({
   route,
   primaryItems,
   secondaryItems,
   onNavigatePrimary,
   onNavigateSecondary,
+  onBackFromSettings,
   navigationStatuses,
   children
 }: AppShellProps) {
   const activeSecondaryPage = secondaryPage(route);
   const hasSecondaryNavigation = secondaryItems.length > 0 && activeSecondaryPage !== null;
 
+  // 设置页为页面级界面：顶栏不再出现主导航，换为「返回 + 页标题」页头
+  const settingsHeader = route.section === "settings";
+
   return (
     <Box
+      className="app-chrome"
       style={{
         width: "100%",
         height: "100vh",
         minWidth: 0,
         display: "flex",
         flexDirection: "column",
-        overflow: "hidden",
-        background: "var(--mantine-color-body)"
+        overflow: "hidden"
       }}
     >
-      <Box
-        component="header"
-        style={{
-          flex: "0 0 66px",
-          borderBottom: "1px solid var(--mantine-color-default-border)",
-          background: "var(--mantine-color-body)"
-        }}
-      >
-        <Box
-          h="100%"
-          px="md"
-          style={{
-            display: "grid",
-            gridTemplateColumns: "minmax(0, 1fr) 50% minmax(0, 1fr)",
-            alignItems: "center",
-            columnGap: "var(--mantine-spacing-md)"
-          }}
-        >
-          <Box style={{ minWidth: 0, justifySelf: "start" }}>
-            <AppBrand />
+      <Box component="header" style={{ flex: "0 0 88px" }}>
+        {settingsHeader ? (
+          <Group h="100%" px="md" gap="sm" wrap="nowrap">
+            <ActionIcon
+              variant="default"
+              radius="md"
+              size="lg"
+              aria-label="返回主界面"
+              onClick={onBackFromSettings}
+            >
+              <IconArrowLeft size={20} stroke={1.7} />
+            </ActionIcon>
+            <Title order={3}>设置</Title>
+          </Group>
+        ) : (
+          <Box
+            h="100%"
+            px="md"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "minmax(0, 1fr) 50% minmax(0, 1fr)",
+              alignItems: "center",
+              columnGap: "var(--mantine-spacing-md)"
+            }}
+          >
+            <Box style={{ minWidth: 0, justifySelf: "start" }}>
+              <Group gap={10} wrap="nowrap">
+                <AppBrand />
+                <HeaderSettingsButton
+                  status={navigationStatuses?.settings}
+                  onNavigate={onNavigatePrimary}
+                />
+              </Group>
+            </Box>
+            <TopNavigation
+              items={primaryItems}
+              active={route.section}
+              onNavigate={onNavigatePrimary}
+              statuses={navigationStatuses}
+            />
+            {/* 第三列留空：右侧入口（主题/GitHub/官网）已并入设置页，保留空列维持导航居中 */}
           </Box>
-          <TopNavigation
-            items={primaryItems}
-            active={route.section}
-            onNavigate={onNavigatePrimary}
-            statuses={navigationStatuses}
-          />
-          {/* 第三列留空：右侧入口（主题/GitHub/官网）已并入设置页，保留空列维持导航居中 */}
-        </Box>
+        )}
       </Box>
 
       <WorkspaceFrame

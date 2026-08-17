@@ -14,7 +14,9 @@ export function WorkspaceFrame({ navigation, children }: WorkspaceFrameProps) {
         minWidth: 0,
         minHeight: 0,
         display: "grid",
-        gridTemplateColumns: navigation ? "134px minmax(0, 1fr)" : "minmax(0, 1fr)"
+        gridTemplateColumns: navigation ? "134px minmax(0, 1fr)" : "minmax(0, 1fr)",
+        // 面板四周留白（顶部紧贴顶栏不留额外 gap），在 chrome 底色上向中间缩进形成层级
+        margin: "0 16px 16px"
       }}
     >
       {navigation ? (
@@ -31,7 +33,18 @@ export function WorkspaceFrame({ navigation, children }: WorkspaceFrameProps) {
           {navigation}
         </Box>
       ) : null}
-      <Box key="workspace" component="main" style={{ minWidth: 0, minHeight: 0, overflow: "auto" }}>
+      <Box
+        key="workspace"
+        component="main"
+        className="workspace-surface"
+        style={{
+          minWidth: 0,
+          minHeight: 0,
+          overflow: "auto",
+          background: "var(--mantine-color-default)",
+          borderRadius: "10px"
+        }}
+      >
         {children}
       </Box>
     </Box>

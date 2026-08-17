@@ -1,4 +1,4 @@
-import type { MusicdlPlaylistRequest, MusicdlSearchRequest } from "../../lib/types";
+import type { MusicdlPlaylistRequest, MusicdlSearchRequest } from "./api";
 import type { MusicTemplateSource, SavedTemplate } from "./templates";
 
 export type MusicMode = "search" | "playlist";

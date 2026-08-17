@@ -1,0 +1,73 @@
+/* 通知外观（配合 lib/notifications.ts 注入的类型类）：
+   纯色低饱和底 + 白色圆盘内的高对比深色图标 + 文本 + 右侧关闭按钮的三段式水平布局。
+   未列出的类型回退到 info。变量按浅/深色主题分别取值。 */
+.app-notification--success {
+  --app-notification-bg: #e2f1e2;
+  --app-notification-icon: #1e7a41;
+}
+
+.app-notification--warning {
+  --app-notification-bg: #fbf1d7;
+  --app-notification-icon: #96690f;
+}
+
+.app-notification--error {
+  --app-notification-bg: #fae5e2;
+  --app-notification-icon: #b03a2e;
+}
+
+.app-notification--info {
+  --app-notification-bg: #e4edf7;
+  --app-notification-icon: #2f6199;
+}
+
+[data-mantine-color-scheme="dark"] .app-notification--success {
+  --app-notification-bg: #1d2c22;
+  --app-notification-icon: #7bd69b;
+}
+
+[data-mantine-color-scheme="dark"] .app-notification--warning {
+  --app-notification-bg: #2e2716;
+  --app-notification-icon: #e3b95c;
+}
+
+[data-mantine-color-scheme="dark"] .app-notification--error {
+  --app-notification-bg: #301d1b;
+  --app-notification-icon: #ef9086;
+}
+
+[data-mantine-color-scheme="dark"] .app-notification--info {
+  --app-notification-bg: #1c2634;
+  --app-notification-icon: #85b3ec;
+}
+
+/* 选择器带属性选择器抬一档特异性，覆盖 Mantine 默认的白/深灰卡片底色 */
+[data-mantine-color-scheme="light"] .app-notification,
+[data-mantine-color-scheme="dark"] .app-notification {
+  background-color: var(--app-notification-bg);
+  padding-inline-start: var(--mantine-spacing-xs);
+}
+
+[data-mantine-color-scheme="light"] .app-notification {
+  --app-notification-title: #3f4043;
+  --app-notification-text: #4b4c50;
+}
+
+[data-mantine-color-scheme="dark"] .app-notification {
+  --app-notification-title: var(--mantine-color-dark-1);
+  --app-notification-text: var(--mantine-color-dark-2);
+}
+
+/* 图标容器：改为白色圆盘，图标继承各类型的高对比深色（尺寸沿用默认 28px 圆） */
+.app-notification .app-notification-icon {
+  background-color: var(--mantine-color-white);
+  color: var(--app-notification-icon);
+}
+
+.app-notification .app-notification-title {
+  color: var(--app-notification-title);
+}
+
+.app-notification .app-notification-description {
+  color: var(--app-notification-text);
+}

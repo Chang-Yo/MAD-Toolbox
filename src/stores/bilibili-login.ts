@@ -1,8 +1,8 @@
 import { notifications } from "../lib/notifications";
-import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { create } from "zustand";
-import type { JobState, RunResult } from "../lib/types";
+import type { JobState } from "../contracts/job";
+import { bilibiliLoginStart } from "../pages/bilibili/api";
 
 interface LoginQrPayload {
   jobId: string;
@@ -103,7 +103,7 @@ export const useBilibiliLoginStore = create<BilibiliLoginStore>((set, get) => {
       startPromise = (async () => {
         try {
           await get().init();
-          const result = await invoke<RunResult>("bilibili_login_start");
+          const result = await bilibiliLoginStart();
           const pending = pendingEvents.get(result.jobId);
           pendingEvents.clear();
 

@@ -1,14 +1,11 @@
 import { Badge, Stack, Text } from "@mantine/core";
-import { CollapsibleSection } from "../../components/CollapsibleSection";
-import { NetworkVideoAdvancedFields } from "../../components/NetworkVideoAdvancedFields";
-import { NetworkVideoCommandPanel } from "../../components/NetworkVideoCommandPanel";
-import { NetworkVideoDownloadFields } from "../../components/NetworkVideoDownloadFields";
-import { NetworkVideoPageHeader } from "../../components/NetworkVideoPageHeader";
-import { NetworkVideoProbeDialog } from "../../components/NetworkVideoProbeDialog";
-import {
-  useNetworkVideoWorkspace,
-  type NetworkVideoPageProps
-} from "../../hooks/useNetworkVideoWorkspace";
+import { CollapsibleSection } from "../../components/common/CollapsibleSection";
+import { NetworkVideoAdvancedFields } from "./NetworkVideoAdvancedFields";
+import { NetworkVideoCommandPanel } from "./NetworkVideoCommandPanel";
+import { NetworkVideoDownloadFields } from "./NetworkVideoDownloadFields";
+import { NetworkVideoPageHeader } from "./NetworkVideoPageHeader";
+import { NetworkVideoProbeDialog } from "./NetworkVideoProbeDialog";
+import { useNetworkVideoWorkspace, type NetworkVideoPageProps } from "./useNetworkVideoWorkspace";
 
 export function NetworkVideoPage(props: NetworkVideoPageProps) {
   const workspace = useNetworkVideoWorkspace(props);

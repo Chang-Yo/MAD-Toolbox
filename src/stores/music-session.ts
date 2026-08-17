@@ -1,13 +1,14 @@
 import { notifications } from "../lib/notifications";
-import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { create } from "zustand";
-import type {
-  JobState,
-  MusicdlSearchRequest,
-  MusicdlSearchResponse,
-  RunResult
-} from "../lib/types";
+import type { JobState, RunResult } from "../contracts/job";
+import {
+  musicdlSearch,
+  musicdlSearchCancel,
+  musicdlSessionRelease,
+  type MusicdlSearchRequest,
+  type MusicdlSearchResponse
+} from "../pages/music/api";
 
 interface PendingSearchEvents {
   response?: MusicdlSearchResponse;
@@ -140,17 +141,16 @@ export const useMusicSessionStore = create<MusicSessionStore>((set, get) => {
       startPromise = (async () => {
         try {
           await get().init();
-          const result = await invoke<RunResult>("musicdl_search", { request });
+          const result = await musicdlSearch(request);
           const pending = pendingEvents.get(result.jobId);
           pendingEvents.clear();
 
           if (previousSessionId && previousSessionId !== result.jobId) {
-            void invoke("musicdl_session_release", { sessionId: previousSessionId }).catch(
-              (error) =>
-                notifications.show({
-                  color: "red",
-                  message: `旧搜索会话清理失败：${errorMessage(error)}`
-                })
+            void musicdlSessionRelease(previousSessionId).catch((error) =>
+              notifications.show({
+                color: "red",
+                message: `旧搜索会话清理失败：${errorMessage(error)}`
+              })
             );
           }
 
@@ -194,7 +194,7 @@ export const useMusicSessionStore = create<MusicSessionStore>((set, get) => {
       }
 
       set({ phase: "canceling", error: null });
-      cancelPromise = invoke<void>("musicdl_search_cancel", { jobId })
+      cancelPromise = musicdlSearchCancel(jobId)
         .catch((error) => {
           if (get().jobId === jobId) {
             set({ phase: "searching", error: errorMessage(error) });
@@ -214,7 +214,7 @@ export const useMusicSessionStore = create<MusicSessionStore>((set, get) => {
       if (!sessionId || state.phase !== "ready") return Promise.resolve();
 
       set({ phase: "releasing", error: null });
-      releasePromise = invoke<void>("musicdl_session_release", { sessionId })
+      releasePromise = musicdlSessionRelease(sessionId)
         .then(() => {
           if (get().response?.sessionId === sessionId) {
             set({

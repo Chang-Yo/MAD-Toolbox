@@ -1,11 +1,11 @@
 import { Badge, Stack, Text } from "@mantine/core";
-import { BilibiliAdvancedFields } from "../../components/BilibiliAdvancedFields";
-import { BilibiliCommandPanel } from "../../components/BilibiliCommandPanel";
-import { BilibiliDownloadFields } from "../../components/BilibiliDownloadFields";
-import { BilibiliLoginDialog } from "../../components/BilibiliLoginDialog";
-import { BilibiliPageHeader } from "../../components/BilibiliPageHeader";
-import { CollapsibleSection } from "../../components/CollapsibleSection";
-import { useBilibiliWorkspace, type BilibiliPageProps } from "../../hooks/useBilibiliWorkspace";
+import { BilibiliAdvancedFields } from "./BilibiliAdvancedFields";
+import { BilibiliCommandPanel } from "./BilibiliCommandPanel";
+import { BilibiliDownloadFields } from "./BilibiliDownloadFields";
+import { BilibiliLoginDialog } from "./BilibiliLoginDialog";
+import { BilibiliPageHeader } from "./BilibiliPageHeader";
+import { CollapsibleSection } from "../../components/common/CollapsibleSection";
+import { useBilibiliWorkspace, type BilibiliPageProps } from "./useBilibiliWorkspace";
 
 export function BilibiliPage(props: BilibiliPageProps) {
   const workspace = useBilibiliWorkspace(props);

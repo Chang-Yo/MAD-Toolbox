@@ -1,17 +1,22 @@
 import { useEffect, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { notifications } from "../lib/notifications";
 import { useBackend } from "../hooks/useBackend";
 import { useTasksStore } from "../stores/tasks";
-import type { MusicdlPlaylistRequest, TaskSubmitResult, ToolName } from "../lib/types";
+import type { ToolName } from "../contracts/dependency";
 import type { TaskEnvelope } from "../contracts/types";
-import { AppShell } from "../components/AppShell";
-import { SplashScreen } from "../components/SplashScreen";
-import { StartupTipsModal, isStartupTipsDismissedToday } from "../components/StartupTipsModal";
-import { WorkspaceSessionHost, type WorkspaceDefinition } from "../components/WorkspaceSessionHost";
+import { AppShell } from "../components/layout/AppShell";
+import { SplashScreen } from "../components/layout/SplashScreen";
+import {
+  StartupTipsModal,
+  isStartupTipsDismissedToday
+} from "../components/layout/StartupTipsModal";
+import {
+  WorkspaceSessionHost,
+  type WorkspaceDefinition
+} from "../components/layout/WorkspaceSessionHost";
 import { BilibiliPage } from "../pages/bilibili/BilibiliPage";
 import { NetworkVideoPage } from "../pages/network/NetworkVideoPage";
-import { MediaWorkspace } from "../components/MediaWorkspace";
+import { MediaWorkspace } from "../pages/media/MediaWorkspace";
 import { MusicPage } from "../pages/music/MusicPage";
 import { TasksPage } from "../pages/tasks/TasksPage";
 import { GeneralSettingsPage } from "../pages/settings/GeneralSettingsPage";
@@ -21,6 +26,7 @@ import { SettingsShell } from "../pages/settings/SettingsShell";
 import { useBilibiliLoginStore } from "../stores/bilibili-login";
 import { useMusicSessionStore } from "../stores/music-session";
 import { useWorkspacesStore, type WorkspaceId } from "../stores/workspaces";
+import { musicdlDownload, musicdlPlaylist, type MusicdlPlaylistRequest } from "../pages/music/api";
 import { L1_NAVIGATION } from "./navigation";
 import {
   DEFAULT_APP_ROUTE,
@@ -128,7 +134,7 @@ export default function App() {
 
   const downloadMusic = async (sessionId: string, indices: number[]) => {
     try {
-      return await invoke<TaskSubmitResult>("musicdl_download", { sessionId, indices });
+      return await musicdlDownload(sessionId, indices);
     } catch (error) {
       showError(error);
       throw error;
@@ -137,7 +143,7 @@ export default function App() {
 
   const downloadMusicPlaylist = async (request: MusicdlPlaylistRequest) => {
     try {
-      return await invoke<TaskSubmitResult>("musicdl_playlist", { request });
+      return await musicdlPlaylist(request);
     } catch (error) {
       showError(error);
       throw error;

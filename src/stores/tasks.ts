@@ -3,10 +3,10 @@
  * 任务页、首页回顾条、池指示器共读同一份数据。
  */
 
-import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { create } from "zustand";
-import type { TaskEnvelope, TaskEvent } from "../contracts/types";
+import type { TaskEvent } from "../contracts/types";
+import { cancelTask, deleteTasks, fetchTasksSnapshot, promoteTask } from "../pages/tasks/api";
 import {
   applySnapshot,
   applyTaskEvent,
@@ -43,16 +43,16 @@ export const useTasksStore = create<TasksStore>((set, get) => ({
     await listen<TaskEvent>("task-event", (event) => {
       set((state) => applyTaskEvent(state, event.payload));
     });
-    const snapshot = await invoke<TaskEnvelope[]>("tasks_snapshot");
+    const snapshot = await fetchTasksSnapshot();
     set((state) => ({ ...applySnapshot(state, snapshot), ready: true }));
   },
 
   cancel: (taskId) => {
-    void invoke("task_cancel", { taskId });
+    void cancelTask(taskId);
   },
   // 置顶只改后端调度顺序；样板期列表按创建时间倒序展示，不做队列顺序可视化
   promote: (taskId) => {
-    void invoke("task_promote", { taskId });
+    void promoteTask(taskId);
   },
 
   // 后端只删终态任务并回传实际删除的 id，本地只移除确认过的条目
@@ -61,7 +61,7 @@ export const useTasksStore = create<TasksStore>((set, get) => ({
       set((state) => removeTasks(state, taskIds));
       return taskIds;
     }
-    const deleted = await invoke<string[]>("task_delete", { taskIds });
+    const deleted = await deleteTasks(taskIds);
     set((state) => removeTasks(state, deleted));
     return deleted;
   }

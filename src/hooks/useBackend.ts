@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import type { AppSettings, DependencyStatus, ToolName } from "../lib/types";
+import type { DependencyStatus, ToolName } from "../contracts/dependency";
+import {
+  fetchAppSettings,
+  fetchDependencyStatus,
+  saveAppSettings,
+  type AppSettings
+} from "../pages/settings/api";
 
 /**
  * 依赖状态与应用设置的共享读取。
@@ -20,18 +25,18 @@ export function useBackend() {
   const refreshDependencies = useCallback(async () => {
     setLoadingDependencies(true);
     try {
-      setDependencies(await invoke<DependencyStatus[]>("dependency_status"));
+      setDependencies(await fetchDependencyStatus());
     } finally {
       setLoadingDependencies(false);
     }
   }, []);
 
   const refreshSettings = useCallback(async () => {
-    setSettings(await invoke<AppSettings>("app_settings"));
+    setSettings(await fetchAppSettings());
   }, []);
 
   const saveSettings = useCallback(async (next: AppSettings) => {
-    const saved = await invoke<AppSettings>("save_app_settings", { settings: next });
+    const saved = await saveAppSettings(next);
     setSettings(saved);
     return saved;
   }, []);

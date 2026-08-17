@@ -13,7 +13,7 @@ import { notifications } from "../../lib/notifications";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { IconDeviceFloppy, IconFolderOpen } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
-import type { AppSettings } from "../../lib/types";
+import type { AppSettings } from "./api";
 
 interface GeneralSettingsPageProps {
   settings: AppSettings;

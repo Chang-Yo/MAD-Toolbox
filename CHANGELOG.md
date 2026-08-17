@@ -2,6 +2,14 @@
 
 All notable changes to MAD Toolbox are documented here.
 
+## 0.9.1
+
+- feat: 任务通知卡片显示位置在左下角
+- feat: 增加首屏加载动画
+- feat: 增加首次进入app时Modal提示
+- fix: 更正 MediaInfo 的安装指令
+- fix: 禁止app界面过度滚动
+
 ## 0.9.0
 
 - 🔥feat: 增加了 Music 搜索结果页文件格式过滤功能

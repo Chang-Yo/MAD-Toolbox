@@ -4,73 +4,61 @@
 
 <h1 align="center">MAD Toolbox</h1>
 
-<p align="center">
-  <a href="README.md">简体中文</a> ·
-  <a href="https://github.com/MAD-Producer/MAD-Toolbox/actions/workflows/check.yml"><img src="https://github.com/MAD-Producer/MAD-Toolbox/actions/workflows/check.yml/badge.svg?branch=main" alt="Checks"></a> ·
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
-</p>
+[![Test Build](https://img.shields.io/github/actions/workflow/status/MAD-Producer/MAD-Toolbox/check.yml?label=test%20build&logo=github&style=for-the-badge)](https://github.com/MAD-Producer/MAD-Toolbox/blob/main/.github/workflows/check.yml)
+![Downloads](https://img.shields.io/github/downloads/MAD-Producer/MAD-Toolbox/total?logo=github&style=for-the-badge)
+![Stars](https://img.shields.io/github/stars/MAD-Producer/MAD-Toolbox?style=for-the-badge)
+[![Deepwiki](https://img.shields.io/badge/Ask-DeepWiki-20B2AA?logo=&style=for-the-badge)](https://deepwiki.com/MAD-Producer/MAD-Toolbox)
+
+---
 
 <p align="center"><strong><em>"There are many toolboxes, but this one is for you, MADer."</em></strong></p>
 
-MAD Toolbox is an open-source Windows and macOS GUI for BBDown, yt-dlp,
-FFmpeg, MediaInfo and an optional external musicdl installation. Supported
-targets are Windows 10 22H2/Windows 11 x64 (`x86_64-pc-windows-msvc`) and
-Apple Silicon macOS 12 or newer.
+---
 
-The application turns form values into argument arrays, runs the selected CLI
-without a shell, and streams its original stdout and stderr into per-task logs
-that can be exported from Task Center.
+[简体中文](README.md) · ENGLISH
 
 ## Features
 
-- BBDown Bilibili downloads that follow the original CLI behavior, with
-  beginner presets and advanced CLI parameters.
-- yt-dlp downloads with explicit HTTP/HTTPS/SOCKS proxy settings,
-  browser-Cookie fallback and advanced format controls.
-- FFmpeg media processing with drag-and-drop files or folders, localized
-  MediaInfo inspection, remuxing, stream extraction, ASS/SRT subtitles,
-  conversion, bitrate/frame-rate/scaling controls, GIFs and image sequences.
-- Premiere Pro compatibility for common video containers, lossless/lossy
-  audio and text subtitle files, with stream copy whenever possible.
-- Persistent last-used settings and multiple plain templates per feature.
-- Background jobs that survive page navigation, cancellation and original
-  per-task log export.
-- Full and Lite distributions with bundled/system executable selection.
+- **Cross-platform support**: Compatible with Windows 10/11 and macOS
+- **Intuitive and convenient tool operations**: Operate the built-in tools quickly through a modern UI design
+- **Unified and efficient task management**: Purpose-designed task statuses, with unified scheduling and management in the Tasks page
 
-QR login uses BBDown's native session behavior and enables the download
-qualities available to the current account. Users may also provide a Cookie
-through BBDown's own `--cookie` option.
-Available quality, premium content, HDR, Dolby Vision and high-bitrate streams
-depend on the logged-in Bilibili account's membership, content and region
-permissions. "Highest quality" means the highest quality available to that
-account.
+Underlying tools:
 
-A saved default output directory can be selected in Settings and is applied to
-BBDown, yt-dlp, FFmpeg and musicdl tasks unless a task overrides it.
+- **BBDown**: Easily download Bilibili videos, with dedicated support for downloading audio, subtitles, covers, danmaku and other resources. (Actual download quality depends on the account login status)
+- **yt-dlp**: Download media resources from YouTube and any other link supported by yt-dlp's parsing formats
+- **FFmpeg**: Supports format conversion and remuxing of common media files, video/audio/subtitle stream extraction, ASS/SRT subtitles, GIF export, image sequences, plus advanced processing of bitrate, frame rate, scaling, cropping, rotation, speed, pixel formats and audio parameters.
+- **musicdl**: Fetch streaming playback resources from major music platforms and download them for preview
 
-The media page includes a beginner-friendly intelligent Premiere Pro workflow
-and professional FFmpeg controls for codecs, bitrate/CRF, frame rate, scaling,
-cropping, rotation, speed, pixel formats, audio bitrate/sample rate/channels,
-loudness normalization, GIF creation and image-sequence export. Output
-directories can be selected in Windows Explorer or Finder.
+> **Note**:
+> Download specs, premium content, HDR, Dolby Vision and high-bitrate resources depend on the current logged-in account's membership, content and region permissions. "Highest quality" means the highest quality actually accessible to that account.
 
-The intelligent Premiere Pro workflow prefers MP4 for H.264 and HEVC sources,
-copying compatible streams whenever possible. It falls back to MOV for codecs
-such as ProRes or when a high-quality compatibility transcode is required.
+## Tech Stack
 
-## Distribution modes
+[![Tauri](https://img.shields.io/badge/Tauri-v2-FFC131?style=for-the-badge&logo=tauri&logoColor=white&labelColor=24C8DB)](https://tauri.app/)
+[![Chakra UI](https://img.shields.io/badge/Mantine_ui-v9-38B2AC?style=for-the-badge&logo=chakraui&logoColor=white&labelColor=319795)](https://mantine.dev/)
+[![Tabler Icons](https://img.shields.io/badge/Tabler_Icons-v3.44-066FD1?style=for-the-badge&logo=tablericons&logoColor=white&labelColor=1E2734)](https://tabler.io/icons)
 
-### Lite
+## Getting Started
 
-The Lite build always includes BBDown. On macOS, install the remaining
-dependencies with Homebrew:
+To get started with MAD Toolbox, simply download the latest release from [Releases](https://github.com/MAD-Producer/MAD-Toolbox/releases/).
 
-```bash
-brew install ffmpeg yt-dlp media-info deno
-```
+MAD Toolbox currently supports the following platforms:
 
-On Windows, use the official download links shown in Settings or install the
-tools with WinGet:
+| Platform | OS Version | Architecture | Distribution Types       |
+| -------- | ---------- | ------------ | ------------------------ |
+| Windows  | 10+        | `x86_64`     | Full `.exe`, Lite `.exe` |
+| macOS    | 14+        | `aarch64`    | Full `.dmg`, Lite `.exe` |
+
+BBDown is bundled by default in both the FULL and LITE versions.
+
+### Installing Third-party Dependencies
+
+For the dependencies required to run MAD Toolbox, you can install them on your system yourself.
+
+**Windows 10/11**
+
+Make sure your system has the [winget](https://learn.microsoft.com/en-us/windows/package-manager/winget/) package manager.
 
 ```powershell
 winget install --id Gyan.FFmpeg -e
@@ -79,106 +67,56 @@ winget install --id MediaArea.MediaInfo -e
 winget install --id DenoLand.Deno -e
 ```
 
-The Windows Lite installer does not embed or launch a WebView2 installer. It
-uses the system WebView2 Runtime, which is normally available on Windows 10
-22H2 and Windows 11. If the runtime is missing, install it separately or use
-the Full build, which includes the offline installer.
-
-### Full
-
-The Full build bundles audited, version-pinned binaries for BBDown,
-FFmpeg/ffprobe, MediaInfo CLI, yt-dlp and Deno. It needs no separate CLI
-installation, and the Windows installer also embeds the WebView2 offline
-installer. Once downloaded, the Windows Full installer and application startup
-do not require an internet connection. It uses the same GUI and adapter code as
-the Lite build.
-
-musicdl is deliberately excluded from both distributions because upstream
-prohibits bundling without explicit permission. Python 3 is also an external
-prerequisite. Install both with:
+**macOS**
 
 ```bash
-brew install python pipx
-pipx ensurepath
-pipx install musicdl
+brew install ffmpeg yt-dlp media-info deno
 ```
 
-On Windows:
+## Development & Contribution
 
-```powershell
-winget install --id Python.Python.3.13 -e
-py -m pip install --user pipx
-py -m pipx ensurepath
-py -m pipx install musicdl
-```
+> Please make sure your system has Node.js 22+, Rust stable and the native build tools for your platform.
 
-For mainland-China networks, the GUI provides copyable USTC and TUNA PyPI
-mirror commands plus a command to restore the official PyPI source.
-
-After installation, restart or use the music page's dependency refresh button.
-The GUI supports keyword search with native result selection, playlist URLs,
-all music source names and all advanced musicdl CLI JSON options.
-
-## Local development and building from source
-
-Node.js 22, Rust stable and the native build tools for the current platform are required.
-
-**Apple Silicon macOS:**
+First clone this project and install the frontend dependencies:
 
 ```bash
+git clone git@github.com:Mad-Producer/MAD-Toolbox
 npm ci
+```
+
+Run in development mode:
+
+```bash
 npm run tauri:dev
 ```
 
-Create Apple Silicon macOS installers:
+We warmly welcome contributions from every developer!
 
-```bash
-npm run tauri:build:lite
-npm run tauri:build:full
-```
+- Before getting started, please read our [Contributing Guide](https://github.com/MAD-Producer/MAD-Toolbox/blob/main/CONTRIBUTING.md)
+- You can also read the project's [docs](https://github.com/MAD-Producer/MAD-Toolbox/blob/main/docs/) to understand the details and the overall roadmap
+- Feel free to share your ideas via [Pull Request](https://github.com/MAD-Producer/MAD-Toolbox/pulls) or [GitHub Issues](https://github.com/MAD-Producer/MAD-Toolbox/issues)
 
-**Windows x64:**
+### Developer Documentation
 
-```powershell
-npm ci
-npm run tauri:dev
-```
-
-Create Windows installers:
-
-```powershell
-npm run tauri:build:lite
-npm run tauri:build:full
-```
-
-The two build commands select the native packaging flow for the current host.
-An explicit target can be passed after `--` (`npm run tauri:build:lite -- win`
-or `-- mac`); the target must match the host, and cross-building is not
-supported. The Windows flow runs on Windows PowerShell 5.1, which ships with
-Windows, so PowerShell 7 is not required. The Windows build scripts verify the
-BBDown binary distributed with the
-repository. Full builds also download and verify the remaining Windows
-sidecars, then produce a bilingual NSIS installer. Unsigned installers may
-trigger a SmartScreen "unknown publisher" warning.
-
-GitHub Actions can run Full/Lite builds for Windows and Apple Silicon macOS
-manually or when a `v*` tag is pushed. Build artifacts are retained for 30 days.
-See the documents below for detailed build and verification rules.
-
-## Documentation
-
-- [Windows build, security and compatibility](docs/WINDOWS.md)
+- [Windows compatibility, build and security notes](docs/WINDOWS.md)
 - [Lite dependency installation](docs/DEPENDENCIES.md)
-- [Full build and redistribution policy](docs/FULL_BUILD.md)
-- [Third-party notices](THIRD_PARTY_NOTICES.md)
+- [Full build packaging and redistribution policy](docs/FULL_BUILD.md)
+- [Third-party notices and licenses](THIRD_PARTY_NOTICES.md)
 - [Contributing](CONTRIBUTING.md)
 - [Reporting security issues](SECURITY.md)
 
+### Contributors
+
+![Contributors](https://contrib.rocks/image?repo=MAD-Producer/MAD-Toolbox "Contributors")
+
+## Copyright
+
+Copyright © 2026 MAD Producer Studio.
+
+**Note: MAD Toolbox is merely a GUI app developed for third-party tools and is intended for communication and learning purposes only. MAD Toolbox is not responsible for any copyright disputes arising from users' usage. Please use the third-party tools with caution, and do not privately redistribute or sell unauthorized material.**
+
 ## License
 
-MAD Toolbox source code is licensed under the MIT License. Bundled tools keep
-their own licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+MAD Toolbox source code is licensed under the MIT License. All bundled tools retain their respective licenses, copyrights and attributions; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before
-submitting changes and report vulnerabilities according to
-[SECURITY.md](SECURITY.md).
+<img src="assets/banner_organization.png" alt="SJMCL" />

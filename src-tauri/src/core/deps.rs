@@ -198,6 +198,9 @@ pub(crate) fn command_path() -> OsString {
         if let Some(program_data) = env::var_os("ProgramData") {
             paths.push(PathBuf::from(program_data).join("chocolatey").join("bin"));
         }
+        if let Some(program_files) = env::var_os("ProgramFiles") {
+            paths.push(PathBuf::from(program_files).join("WinGet").join("Links"));
+        }
     }
     #[cfg(not(target_os = "windows"))]
     if let Some(home) = env::var_os("HOME") {
@@ -209,7 +212,70 @@ pub(crate) fn command_path() -> OsString {
         }
     }
     paths.extend(env::split_paths(&inherited));
+    #[cfg(target_os = "windows")]
+    {
+        use windows_sys::Win32::System::Registry::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE};
+        if let Some(user) = registry_path(HKEY_CURRENT_USER, "Environment") {
+            paths.extend(env::split_paths(&user));
+        }
+        if let Some(machine) = registry_path(
+            HKEY_LOCAL_MACHINE,
+            r"System\CurrentControlSet\Control\Session Manager\Environment",
+        ) {
+            paths.extend(env::split_paths(&machine));
+        }
+    }
     env::join_paths(paths).unwrap_or(inherited)
+}
+
+#[cfg(target_os = "windows")]
+fn registry_path(
+    root: windows_sys::Win32::System::Registry::HKEY,
+    sub_key: &str,
+) -> Option<OsString> {
+    use std::os::windows::ffi::OsStringExt;
+    use windows_sys::Win32::Foundation::ERROR_SUCCESS;
+    use windows_sys::Win32::System::Registry::{RegGetValueW, RRF_RT_REG_EXPAND_SZ, RRF_RT_REG_SZ};
+
+    fn wide(text: &str) -> Vec<u16> {
+        text.encode_utf16().chain(std::iter::once(0)).collect()
+    }
+
+    let sub_key = wide(sub_key);
+    let value = wide("PATH");
+    unsafe {
+        let mut size = 0u32;
+        if RegGetValueW(
+            root,
+            sub_key.as_ptr(),
+            value.as_ptr(),
+            RRF_RT_REG_SZ | RRF_RT_REG_EXPAND_SZ,
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            &mut size,
+        ) != ERROR_SUCCESS
+            || size < 2
+        {
+            return None;
+        }
+        let mut buffer = vec![0u16; size as usize / 2];
+        if RegGetValueW(
+            root,
+            sub_key.as_ptr(),
+            value.as_ptr(),
+            RRF_RT_REG_SZ | RRF_RT_REG_EXPAND_SZ,
+            std::ptr::null_mut(),
+            buffer.as_mut_ptr().cast(),
+            &mut size,
+        ) != ERROR_SUCCESS
+        {
+            return None;
+        }
+        while buffer.last() == Some(&0) {
+            buffer.pop();
+        }
+        Some(OsString::from_wide(&buffer))
+    }
 }
 
 fn executable_filename(name: &str) -> String {
@@ -699,4 +765,36 @@ pub(crate) async fn ffmpeg_encoders(app: AppHandle) -> Result<Vec<String>, Strin
     encoders.sort();
     encoders.dedup();
     Ok(encoders)
+}
+
+#[cfg(all(test, target_os = "windows"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn machine_registry_path_contains_windows_dir() {
+        let path = registry_path(
+            windows_sys::Win32::System::Registry::HKEY_LOCAL_MACHINE,
+            r"System\CurrentControlSet\Control\Session Manager\Environment",
+        )
+        .expect("读取机器级注册表 PATH 失败");
+        let directories: Vec<String> = env::split_paths(&path)
+            .map(|directory| directory.to_string_lossy().to_ascii_lowercase())
+            .collect();
+        assert!(
+            directories
+                .iter()
+                .any(|directory| directory.contains("windows")),
+            "机器级 PATH 未包含 Windows 系统目录：{directories:?}"
+        );
+    }
+
+    #[test]
+    fn command_path_merges_registry_entries() {
+        let merged = command_path().to_string_lossy().to_ascii_lowercase();
+        assert!(
+            merged.contains(r"winget\links"),
+            "合并后的搜索路径未包含 WinGet Links 目录：{merged}"
+        );
+    }
 }

@@ -2,6 +2,17 @@
 
 All notable changes to MAD Toolbox are documented here.
 
+## 0.10.0
+
+- feat: 重新设计了界面布局，UI/UX更加现代化！
+- feat: 通知条加入了倒计时条功能
+- feat: 首次进入提示卡片新增Bilibili下载视频功能提醒
+- feat: 更好的黑夜模式，优化了配色方案，并支持改变原生标题颜色
+- fix: 某些依赖（FFmpeg）一键下载后重新检测无法更新
+- fix: Bilibili Page 扫码登录后状态未更新
+- fix: 输入目录的可点击ICON单独出来作为尾部动作按钮，提示用户可点击选择
+- fix: 默认主题设置为"light"，视觉体验初印象更好
+
 ## 0.9.1
 
 - feat: 任务通知卡片显示位置在左下角

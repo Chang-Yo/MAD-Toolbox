@@ -29,7 +29,7 @@ function HeroStat({ label, value, color }: { label: string; value: number; color
       <Text size="lg" fw={600} lh={1}>
         {label}
       </Text>
-      <Text fw={800} c={color} lh={1} style={{ fontSize: 28 }}>
+      <Text fw={800} c={value === 0 ? "dimmed" : color} lh={1} style={{ fontSize: 28 }}>
         {value}
       </Text>
     </Group>
@@ -121,9 +121,9 @@ export function TasksPage({ onRerun }: TasksPageProps) {
       <Card withBorder padding="lg">
         <Stack gap="md" align="center">
           <Group justify="center" gap="12%" w="100%" wrap="nowrap">
-            <HeroStat label="运行中" value={hero.active} color="orange" />
+            <HeroStat label="运行中" value={hero.active} color="blue" />
             <HeroStat label="中断" value={hero.interrupted} color="yellow" />
-            <HeroStat label="结束" value={hero.finished} color="gray" />
+            <HeroStat label="结束" value={hero.finished} color="green" />
           </Group>
           <Box w="100%">
             <PoolIndicator

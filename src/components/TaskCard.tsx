@@ -1,5 +1,5 @@
 /**
- * 任务卡片：左边界按 feature 着色（颜色为冗余编码，状态徽章文字仍在）。
+ * 任务卡片：左边界按任务状态着色（颜色为冗余编码，状态徽章文字仍在）。
  * 收起时只显示标题行（状态 + 名称 + 取消/日志/诊断/输出位置/删除）与状态进度条；
  * 展开后显示完整命令、置顶/重跑等上下文操作和失败日志尾部（§8 已定）。
  * 完整日志走 [打开日志]（shell 打开，壳不做查看器）。
@@ -45,13 +45,6 @@ const STATUS_META: Record<TaskStatus, { label: string; color: string }> = {
   failed: { label: "失败", color: "red" },
   canceled: { label: "已取消", color: "gray" },
   interrupted: { label: "中断", color: "yellow" }
-};
-
-const FEATURE_COLORS: Record<TaskEnvelope["feature"], string> = {
-  bilibili: "var(--mantine-color-pink-5)",
-  network: "var(--mantine-color-blue-5)",
-  media: "var(--mantine-color-teal-5)",
-  music: "var(--mantine-color-grape-5)"
 };
 
 const FAILED_TAIL_LINES = 10;
@@ -145,7 +138,7 @@ export function TaskCard({ task, logs, onCancel, onPromote, onDelete, onRerun }:
     <Card
       withBorder
       padding="sm"
-      style={{ borderLeft: `3px solid ${FEATURE_COLORS[task.feature]}` }}
+      style={{ borderLeft: `3px solid var(--mantine-color-${status.color}-5)` }}
     >
       <Group justify="space-between" wrap="nowrap">
         <UnstyledButton
@@ -156,6 +149,7 @@ export function TaskCard({ task, logs, onCancel, onPromote, onDelete, onRerun }:
           <Group gap="xs" wrap="nowrap">
             <IconChevronRight
               size={16}
+              color="var(--mantine-color-dimmed)"
               style={{
                 flexShrink: 0,
                 transform: opened ? "rotate(90deg)" : "none",
@@ -174,28 +168,28 @@ export function TaskCard({ task, logs, onCancel, onPromote, onDelete, onRerun }:
           {cancellable && (
             <Tooltip label="取消">
               <ActionIcon variant="subtle" color="red" onClick={() => onCancel(task.id)}>
-                <IconX size={16} />
+                <IconX size={16} color="var(--mantine-color-dimmed)" />
               </ActionIcon>
             </Tooltip>
           )}
           {task.logPath && (
             <Tooltip label="打开日志文件">
               <ActionIcon variant="subtle" onClick={openLogFile}>
-                <IconFileText size={16} />
+                <IconFileText size={16} color="var(--mantine-color-dimmed)" />
               </ActionIcon>
             </Tooltip>
           )}
           {TERMINAL_STATUSES.has(task.status) && (
             <Tooltip label="导出诊断文件（脱敏）">
               <ActionIcon variant="subtle" onClick={() => void exportDiagnostics()}>
-                <IconFileDownload size={16} />
+                <IconFileDownload size={16} color="var(--mantine-color-dimmed)" />
               </ActionIcon>
             </Tooltip>
           )}
           {(task.outputPaths[0] || task.workingDir) && (
             <Tooltip label="打开输出位置">
               <ActionIcon variant="subtle" onClick={revealOutput}>
-                <IconFolderOpen size={16} />
+                <IconFolderOpen size={16} color="var(--mantine-color-dimmed)" />
               </ActionIcon>
             </Tooltip>
           )}
@@ -221,7 +215,7 @@ export function TaskCard({ task, logs, onCancel, onPromote, onDelete, onRerun }:
           {task.status === "queued" && (
             <Tooltip label="置顶（移到队首）">
               <ActionIcon variant="subtle" onClick={() => onPromote(task.id)}>
-                <IconArrowUp size={16} />
+                <IconArrowUp size={16} color="var(--mantine-color-dimmed)" />
               </ActionIcon>
             </Tooltip>
           )}

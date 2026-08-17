@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { notifications } from "@mantine/notifications";
+import { notifications } from "../lib/notifications";
 import { useBackend } from "../hooks/useBackend";
 import { useTasksStore } from "../stores/tasks";
 import type { MusicdlPlaylistRequest, TaskSubmitResult, ToolName } from "../lib/types";
 import type { TaskEnvelope } from "../contracts/types";
 import { AppShell } from "../components/AppShell";
+import { SplashScreen } from "../components/SplashScreen";
+import { StartupTipsModal, isStartupTipsDismissedToday } from "../components/StartupTipsModal";
 import { WorkspaceSessionHost, type WorkspaceDefinition } from "../components/WorkspaceSessionHost";
 import { BilibiliPage } from "../pages/bilibili/BilibiliPage";
 import { NetworkVideoPage } from "../pages/network/NetworkVideoPage";
@@ -50,6 +52,8 @@ export default function App() {
   const [lastMediaPage, setLastMediaPage] = useState<MediaPageId>("pr-compatible");
   const [lastSettingsPage, setLastSettingsPage] = useState<SettingsPageId>("general");
   const [rerunSeed, setRerunSeed] = useState<TaskEnvelope | null>(null);
+  const [booted, setBooted] = useState(false);
+  const [tipsOpened, setTipsOpened] = useState(false);
   const backend = useBackend();
   const initTasksStore = useTasksStore((s) => s.init);
   const activeTaskCount = useTasksStore(
@@ -68,6 +72,13 @@ export default function App() {
     void initBilibiliLogin();
     void initMusicSession();
   }, [initBilibiliLogin, initMusicSession, initTasksStore]);
+
+  // 首屏只等前端挂载：依赖检测启动即发起但在后台进行，完成后各界面
+  // （缺失徽标、依赖页、警示通知）自行刷新，不阻塞进入主界面
+  useEffect(() => {
+    setBooted(true);
+    if (!isStartupTipsDismissedToday()) setTipsOpened(true);
+  }, []);
 
   const distributionMode =
     backend.dependencies.some((item) => item.required) &&
@@ -273,41 +284,46 @@ export default function App() {
   // L2 导航已全部内联到页面：媒体页为页头 SegmentedControl，设置页为悬浮竖排 SegmentedControl
   const secondaryItems: readonly never[] = [];
 
+  if (!booted) return <SplashScreen />;
+
   return (
-    <AppShell
-      route={route}
-      primaryItems={L1_NAVIGATION}
-      secondaryItems={secondaryItems}
-      onNavigatePrimary={navigatePrimary}
-      onNavigateSecondary={navigateSecondary}
-      navigationStatuses={{
-        ...(activeTaskCount > 0
-          ? {
-              tasks: {
-                count: activeTaskCount,
-                label: `${activeTaskCount} 个活动任务`,
-                color: "blue"
+    <>
+      <AppShell
+        route={route}
+        primaryItems={L1_NAVIGATION}
+        secondaryItems={secondaryItems}
+        onNavigatePrimary={navigatePrimary}
+        onNavigateSecondary={navigateSecondary}
+        navigationStatuses={{
+          ...(activeTaskCount > 0
+            ? {
+                tasks: {
+                  count: activeTaskCount,
+                  label: `${activeTaskCount} 个活动任务`,
+                  color: "blue"
+                }
               }
-            }
-          : {}),
-        ...(missingDependencyCount > 0
-          ? {
-              settings: {
-                count: missingDependencyCount,
-                label: `${missingDependencyCount} 个必要依赖未就绪`,
-                color: "yellow"
+            : {}),
+          ...(missingDependencyCount > 0
+            ? {
+                settings: {
+                  count: missingDependencyCount,
+                  label: `${missingDependencyCount} 个必要依赖未就绪`,
+                  color: "yellow"
+                }
               }
-            }
-          : {})
-      }}
-    >
-      <WorkspaceSessionHost activeWorkspace={activeWorkspace} workspaces={workspaces} />
-      {activeWorkspace === null ? (
-        // key 仅为 section 级：设置子页切换时不重挂载 Shell，SegmentedControl 指示条得以平滑滑动
-        <div key={route.section} className="workspace-enter">
-          {renderNonWorkspacePage()}
-        </div>
-      ) : null}
-    </AppShell>
+            : {})
+        }}
+      >
+        <WorkspaceSessionHost activeWorkspace={activeWorkspace} workspaces={workspaces} />
+        {activeWorkspace === null ? (
+          // key 仅为 section 级：设置子页切换时不重挂载 Shell，SegmentedControl 指示条得以平滑滑动
+          <div key={route.section} className="workspace-enter">
+            {renderNonWorkspacePage()}
+          </div>
+        ) : null}
+      </AppShell>
+      <StartupTipsModal opened={tipsOpened} onClose={() => setTipsOpened(false)} />
+    </>
   );
 }

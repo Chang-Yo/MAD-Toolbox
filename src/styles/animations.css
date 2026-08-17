@@ -50,6 +50,33 @@
   }
 }
 
+/* 首屏五点加载器：波浪式起伏，逐点延迟 100ms 形成接力节奏 */
+.dots-loader {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.dots-loader-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: var(--mantine-radius-xl);
+  background: var(--mantine-primary-color-filled);
+  animation: dots-loader-bounce 1s ease-in-out infinite;
+}
+
+@keyframes dots-loader-bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.45;
+  }
+  40% {
+    transform: translateY(-8px);
+    opacity: 1;
+  }
+}
+
 /* 工作区/普通页面切换时的入场动画。
    <Activity> 与 [hidden] 隐藏均为 display:none，重新可见时动画会重放。 */
 @keyframes workspace-enter {

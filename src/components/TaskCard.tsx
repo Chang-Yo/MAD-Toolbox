@@ -19,7 +19,7 @@ import {
   Tooltip,
   UnstyledButton
 } from "@mantine/core";
-import { notifications } from "@mantine/notifications";
+import { notifications } from "../lib/notifications";
 import { invoke } from "@tauri-apps/api/core";
 import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";

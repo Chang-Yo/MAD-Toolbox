@@ -9,7 +9,7 @@ import {
   useMantineColorScheme,
   type MantineColorScheme
 } from "@mantine/core";
-import { notifications } from "@mantine/notifications";
+import { notifications } from "../../lib/notifications";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { IconDeviceFloppy, IconFolderOpen } from "@tabler/icons-react";
 import { useEffect, useState } from "react";

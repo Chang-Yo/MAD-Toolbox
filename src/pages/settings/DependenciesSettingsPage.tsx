@@ -1,5 +1,5 @@
 import { SegmentedControl, Stack, Text } from "@mantine/core";
-import { notifications } from "@mantine/notifications";
+import { notifications } from "../../lib/notifications";
 import { invoke } from "@tauri-apps/api/core";
 import { DependencyInstallCards } from "../../components/DependencyInstallCards";
 import { DependencyStatusPanel } from "../../components/DependencyStatusPanel";

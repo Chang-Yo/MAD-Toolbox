@@ -1,5 +1,5 @@
 import { useDisclosure } from "@mantine/hooks";
-import { notifications } from "@mantine/notifications";
+import { notifications } from "../lib/notifications";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { useEffect, useRef, useState } from "react";
 import type { TaskEnvelope, TaskIntent } from "../contracts/types";

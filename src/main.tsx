@@ -4,6 +4,7 @@ import { createTheme, MantineProvider } from "@mantine/core";
 import { Notifications } from "@mantine/notifications";
 import "@mantine/core/styles.css";
 import "@mantine/notifications/styles.css";
+import "@mantine/carousel/styles.css";
 import "./styles/animations.css";
 import "./styles/layout.css";
 import App from "./app/App";
@@ -20,9 +21,8 @@ const theme = createTheme({
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <MantineProvider theme={theme} defaultColorScheme="auto">
-      {/* 顶部 66px 是全局导航栏：top-right 通知压到导航栏之下，避免遮挡
-          （不能直接给 style——会平铺到全部六个方位容器，bottom 容器会因此被拉伸成全屏挡点击） */}
-      <Notifications position="top-right" classNames={{ root: "app-notifications" }} />
+      {/* 左下角展示：远离顶部导航与右侧操作区；图标与底色规则见 layout.css 中 app-notification */}
+      <Notifications position="bottom-left" />
       <App />
     </MantineProvider>
   </React.StrictMode>

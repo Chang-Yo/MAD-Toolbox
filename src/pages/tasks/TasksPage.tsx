@@ -6,7 +6,7 @@
  */
 
 import { Badge, Box, Button, Card, Group, Stack, Text, Title } from "@mantine/core";
-import { notifications } from "@mantine/notifications";
+import { notifications } from "../../lib/notifications";
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useMemo, useState } from "react";
 import { CollapsibleSection } from "../../components/CollapsibleSection";

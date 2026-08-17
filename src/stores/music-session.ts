@@ -1,4 +1,4 @@
-import { notifications } from "@mantine/notifications";
+import { notifications } from "../lib/notifications";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { create } from "zustand";

@@ -1,5 +1,7 @@
 import {
+  ActionIcon,
   Group,
+  Input,
   NumberInput,
   SegmentedControl,
   Stack,
@@ -8,6 +10,7 @@ import {
   Tooltip
 } from "@mantine/core";
 import { IconFolderOpen } from "@tabler/icons-react";
+import { FieldWithActions } from "../../components/common/FieldWithActions";
 import type { MusicFormPatch, MusicFormState, MusicMode } from "./configuration";
 
 interface MusicConfigurationPanelProps {
@@ -51,22 +54,35 @@ export function MusicConfigurationPanel({
         />
       )}
       <Group grow>
-        <TextInput
+        {/* Input.Wrapper 承担 label/description，组合行内的按钮才能与输入框同高对齐；
+            Input 自带的 5px 上边距同样抵消，改由整行承担，避免行内错位 */}
+        <Input.Wrapper
           label="下载目录"
           description="默认保存到系统「下载」目录下的 MADToolbox 文件夹"
-          placeholder="留空保存到 下载/MADToolbox"
-          value={form.outputDirectory}
-          onChange={(event) => onChange({ outputDirectory: event.currentTarget.value })}
-          leftSection={
-            <Tooltip label="选择目录">
-              <IconFolderOpen
-                size={16}
-                style={{ cursor: "pointer" }}
-                onClick={onPickOutputDirectory}
-              />
-            </Tooltip>
-          }
-        />
+        >
+          <FieldWithActions
+            mt="calc(var(--mantine-spacing-xs) / 2)"
+            actions={
+              <Tooltip label="选择目录">
+                <ActionIcon
+                  variant="default"
+                  size="input-sm"
+                  aria-label="选择下载目录"
+                  onClick={onPickOutputDirectory}
+                >
+                  <IconFolderOpen size={16} stroke={1.7} />
+                </ActionIcon>
+              </Tooltip>
+            }
+          >
+            <Input
+              placeholder="留空保存到 下载/MADToolbox"
+              value={form.outputDirectory}
+              onChange={(event) => onChange({ outputDirectory: event.currentTarget.value })}
+              style={{ marginTop: 0 }}
+            />
+          </FieldWithActions>
+        </Input.Wrapper>
         <NumberInput
           label="每源结果数"
           description="每个音乐源返回的搜索结果条数"

@@ -1,4 +1,5 @@
 import {
+  ActionIcon,
   Button,
   Group,
   SegmentedControl,
@@ -13,6 +14,7 @@ import { notifications } from "../../lib/notifications";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { IconDeviceFloppy, IconFolderOpen } from "@tabler/icons-react";
 import { useEffect, useState } from "react";
+import { FieldWithActions } from "../../components/common/FieldWithActions";
 import type { AppSettings } from "./api";
 
 interface GeneralSettingsPageProps {
@@ -56,21 +58,30 @@ export function GeneralSettingsPage({ settings, onSave }: GeneralSettingsPagePro
     <Stack gap="lg" maw={760}>
       <div>
         <Text fw={500}>默认导出目录</Text>
-        <TextInput
+        <Text size="xs" c="dimmed">
+          下载与导出任务的默认存放位置，各功能页未单独指定时使用。
+        </Text>
+        <FieldWithActions
           mt="sm"
-          placeholder="留空时各功能页默认使用系统「下载」目录下的 MADToolbox"
-          value={directory}
-          onChange={(event) => setDirectory(event.currentTarget.value)}
-          leftSection={
+          actions={
             <Tooltip label="选择目录">
-              <IconFolderOpen
-                size={16}
-                style={{ cursor: "pointer" }}
+              <ActionIcon
+                variant="default"
+                size="input-sm"
+                aria-label="选择默认导出目录"
                 onClick={() => void pickDirectory()}
-              />
+              >
+                <IconFolderOpen size={16} stroke={1.7} />
+              </ActionIcon>
             </Tooltip>
           }
-        />
+        >
+          <TextInput
+            placeholder="系统「下载」目录下的 MADToolbox"
+            value={directory}
+            onChange={(event) => setDirectory(event.currentTarget.value)}
+          />
+        </FieldWithActions>
       </div>
 
       <div>
@@ -90,7 +101,7 @@ export function GeneralSettingsPage({ settings, onSave }: GeneralSettingsPagePro
         <Text fw={500}>主题</Text>
         <SegmentedControl
           mt="sm"
-          w="100%"
+          w={320}
           radius="md"
           value={colorScheme}
           onChange={(value) => setColorScheme(value as MantineColorScheme)}

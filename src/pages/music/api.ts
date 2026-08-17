@@ -1,6 +1,79 @@
+/**
+ * music 后端契约的类型化 invoke 封装——页面与 store 不裸写 invoke 字符串。
+ */
+
 import { invoke } from "@tauri-apps/api/core";
+import type { RunResult } from "../../contracts/job";
 import type { MusicdlCliOptions } from "./configuration";
+
+export interface SubmitResult {
+  taskId: string;
+}
+
+export interface MusicdlSearchRequest {
+  keyword: string;
+  musicSources: string[];
+  initMusicClientsCfg: Record<string, unknown>;
+  requestsOverrides: Record<string, unknown>;
+  clientsThreadings: Record<string, unknown>;
+  searchRules: Record<string, unknown>;
+  outputDirectory: string | null;
+  searchSizePerSource: number;
+}
+
+export interface MusicdlPlaylistRequest {
+  playlistUrl: string;
+  musicSources: string[];
+  initMusicClientsCfg: Record<string, unknown>;
+  requestsOverrides: Record<string, unknown>;
+  clientsThreadings: Record<string, unknown>;
+  searchRules: Record<string, unknown>;
+  outputDirectory: string | null;
+}
+
+export interface MusicdlSearchResult {
+  index: number;
+  songName: string;
+  singers: string;
+  album: string;
+  extension: string;
+  fileSize: string;
+  duration: string;
+  bitrate: number | null;
+  codec: string;
+  sampleRate: number | null;
+  channels: number | null;
+  source: string;
+  rootSource: string;
+  coverUrl: string | null;
+  lossless: boolean;
+}
+
+export interface MusicdlSearchResponse {
+  sessionId: string;
+  results: MusicdlSearchResult[];
+}
 
 export function previewMusicCommand(request: MusicdlCliOptions): Promise<string> {
   return invoke<string>("musicdl_preview", { request });
+}
+
+export function musicdlSearch(request: MusicdlSearchRequest): Promise<RunResult> {
+  return invoke<RunResult>("musicdl_search", { request });
+}
+
+export function musicdlSearchCancel(jobId: string): Promise<void> {
+  return invoke<void>("musicdl_search_cancel", { jobId });
+}
+
+export function musicdlSessionRelease(sessionId: string): Promise<void> {
+  return invoke<void>("musicdl_session_release", { sessionId });
+}
+
+export function musicdlDownload(sessionId: string, indices: number[]): Promise<SubmitResult> {
+  return invoke<SubmitResult>("musicdl_download", { sessionId, indices });
+}
+
+export function musicdlPlaylist(request: MusicdlPlaylistRequest): Promise<SubmitResult> {
+  return invoke<SubmitResult>("musicdl_playlist", { request });
 }

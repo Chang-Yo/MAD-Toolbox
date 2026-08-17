@@ -3,6 +3,7 @@
  */
 
 import { invoke } from "@tauri-apps/api/core";
+import type { RunResult } from "../../contracts/job";
 import type { TaskIntent } from "../../contracts/types";
 
 export interface PreviewResult {
@@ -22,4 +23,8 @@ export function bilibiliPreview(intent: TaskIntent): Promise<PreviewResult> {
 
 export function bilibiliSubmit(intent: TaskIntent): Promise<SubmitResult> {
   return invoke<SubmitResult>("bilibili_submit", { intent });
+}
+
+export function bilibiliLoginStart(): Promise<RunResult> {
+  return invoke<RunResult>("bilibili_login_start");
 }

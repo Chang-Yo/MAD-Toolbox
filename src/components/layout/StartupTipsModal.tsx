@@ -2,7 +2,13 @@ import { useEffect, useState } from "react";
 import type { EmblaCarouselType } from "embla-carousel";
 import { Carousel } from "@mantine/carousel";
 import { ActionIcon, Button, Group, Modal, Stack, Text, ThemeIcon } from "@mantine/core";
-import { IconChevronLeft, IconChevronRight, IconFileMusic, IconNetwork } from "@tabler/icons-react";
+import {
+  IconChevronLeft,
+  IconChevronRight,
+  IconFileMusic,
+  IconNetwork,
+  IconQrcode,
+} from "@tabler/icons-react";
 
 const DISMISSED_AT_KEY = "mad-toolbox:startup-tips-dismissed-at";
 
@@ -28,8 +34,8 @@ interface StartupTipsModalProps {
 }
 
 /**
- * 启动提示：两页轮播，翻页箭头与操作按钮固定在底部一行。
- * 「今日不再提醒」仅在第二页可见可点，用户必须翻到末页才能当天免打扰。
+ * 启动提示：三页轮播，翻页箭头与操作按钮固定在底部一行。
+ * 「今日不再提醒」仅在末页可见可点，用户必须翻到末页才能当天免打扰。
  */
 export function StartupTipsModal({ opened, onClose }: StartupTipsModalProps) {
   const [embla, setEmbla] = useState<EmblaCarouselType | null>(null);
@@ -60,7 +66,7 @@ export function StartupTipsModal({ opened, onClose }: StartupTipsModalProps) {
     >
       <Carousel
         slideSize="100%"
-        height={190}
+        height={240}
         withControls={false}
         emblaOptions={{ loop: false, watchDrag: false }}
         getEmblaApi={setEmbla}
@@ -70,13 +76,41 @@ export function StartupTipsModal({ opened, onClose }: StartupTipsModalProps) {
           <Stack gap="sm" h="100%" justify="flex-start" pt="sm" px="xl">
             <Group gap="xs">
               <ThemeIcon variant="light" color="orange" size="lg">
-                <IconNetwork size={18} />
+                <IconQrcode size={18} />
               </ThemeIcon>
-              <Text fw={600}>代理开关会影响各功能页的性能</Text>
+              <Text fw={600}>Bilibili 下载画质与登录状态相关</Text>
             </Group>
             <Text size="sm" c="dimmed">
-              功能页的网络请求都会经过全局代理。下载音乐等使用国内音源时，关闭代理速度更快； 下载
-              YouTube 等国外源时则相反。请按数据源在「设置 → 通用」中合理开关代理。
+              Bilibili 视频下载的画质，取决于是否通过界面扫码登录，以及大会员账号的等级。
+              未登录时最高只能下载 480P，扫码登录后一般可以下载到 1080P。
+            </Text>
+            <Text size="sm" c="dimmed">
+              哔哩哔哩页右上角的按钮会显示当前登录状态：显示「扫码登录」即代表当前未登录，
+              或之前的登录已过期；显示「已登录」则无需重复扫码。
+            </Text>
+            <Text size="sm" c="dimmed">
+              下载时默认选择能够获取到的最高规格画质。
+            </Text>
+          </Stack>
+        </Carousel.Slide>
+        <Carousel.Slide>
+          <Stack gap="sm" h="100%" justify="flex-start" pt="sm" px="xl">
+            <Group gap="xs">
+              <ThemeIcon variant="light" color="orange" size="lg">
+                <IconNetwork size={18} />
+              </ThemeIcon>
+              <Text fw={600}>按数据源合理开关系统代理</Text>
+            </Group>
+            <Text size="sm" c="dimmed">
+              系统代理的设置会影响应用发起请求时使用的 IP。
+            </Text>
+            <Text size="sm" c="dimmed">
+              国内服务器的下载任务（如 Bilibili 视频下载、国内音乐源下载）建议关闭代理；
+              国外服务器的下载任务（如 YouTube、国外音乐源）建议开启代理。
+            </Text>
+            <Text size="sm" c="dimmed">
+              若代理软件开启了 TUN 模式，相当于所有流量都经过代理，下载国内服务器的任务时建议关闭
+              TUN 模式。
             </Text>
           </Stack>
         </Carousel.Slide>
@@ -96,8 +130,8 @@ export function StartupTipsModal({ opened, onClose }: StartupTipsModalProps) {
           </Stack>
         </Carousel.Slide>
       </Carousel>
-      {/* 底部控制行：左右圆角矩形翻页箭头分居两侧，「今日不再提醒」居中且仅第二页可见。
-          visibility 占位保证首屏到次页时控制行高度不跳。 */}
+      {/* 底部控制行：左右圆角矩形翻页箭头分居两侧，「今日不再提醒」居中且仅末页可见。
+          visibility 占位保证翻页时控制行高度不跳。 */}
       <Group justify="space-between" align="center" mt="xs">
         <ActionIcon
           variant="default"
@@ -110,7 +144,7 @@ export function StartupTipsModal({ opened, onClose }: StartupTipsModalProps) {
         >
           <IconChevronLeft size={18} />
         </ActionIcon>
-        <span style={{ visibility: slide === 1 ? "visible" : "hidden" }}>
+        <span style={{ visibility: slide === 2 ? "visible" : "hidden" }}>
           <Button variant="light" onClick={dismissForToday}>
             今日不再提醒
           </Button>
@@ -120,7 +154,7 @@ export function StartupTipsModal({ opened, onClose }: StartupTipsModalProps) {
           radius="sm"
           w={44}
           h={32}
-          disabled={slide === 1}
+          disabled={slide === 2}
           onClick={() => embla?.scrollNext()}
           aria-label="下一页"
         >

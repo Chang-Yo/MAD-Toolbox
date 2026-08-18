@@ -16,6 +16,12 @@ export const theme = createTheme({
       defaultProps: {
         withItemsBorders: false
       }
+    },
+    // Chip 库默认 xl 圆角呈胶囊形，与全局圆角矩形语言（defaultRadius: md）不符
+    Chip: {
+      defaultProps: {
+        radius: "md"
+      }
     }
   }
 });

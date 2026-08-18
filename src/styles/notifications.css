@@ -82,3 +82,8 @@
     transform: scaleX(0);
   }
 }
+
+.mantine-Notifications-root[data-position="bottom-left"] {
+  left: calc(var(--mantine-spacing-md) / 2);
+  bottom: calc(var(--mantine-spacing-md) / 2);
+}

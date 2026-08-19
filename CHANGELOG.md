@@ -2,6 +2,12 @@
 
 All notable changes to MAD Toolbox are documented here.
 
+## 0.10.1
+
+- refactor: 颜色方案集中到语义 token 层（src/styles/tokens.css），亮暗取值成对管理
+- feat: 黑夜模式全面适配，配色方案更饱满！
+- fix: 进一步优化了前端界面的展示
+
 ## 0.10.0
 
 - feat: 重新设计了界面布局，UI/UX更加现代化！

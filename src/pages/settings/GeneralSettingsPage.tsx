@@ -14,7 +14,7 @@ import { notifications } from "../../lib/notifications";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import {
   IconDeviceDesktop,
-  IconDeviceFloppy,
+  IconBookDownload,
   IconFolderOpen,
   IconMoon,
   IconSun
@@ -140,7 +140,7 @@ export function GeneralSettingsPage({ settings, onSave }: GeneralSettingsPagePro
 
       <Group justify="end">
         <Button
-          leftSection={<IconDeviceFloppy size={15} />}
+          leftSection={<IconBookDownload size={15} />}
           loading={saving}
           onClick={() => void save()}
         >

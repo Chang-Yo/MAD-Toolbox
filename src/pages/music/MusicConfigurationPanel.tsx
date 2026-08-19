@@ -3,7 +3,6 @@ import {
   Group,
   Input,
   NumberInput,
-  SegmentedControl,
   Stack,
   Textarea,
   TextInput,
@@ -11,7 +10,8 @@ import {
 } from "@mantine/core";
 import { IconFolderOpen } from "@tabler/icons-react";
 import { FieldWithActions } from "../../components/common/FieldWithActions";
-import type { MusicFormPatch, MusicFormState, MusicMode } from "./configuration";
+import { L2TabNav } from "../../components/common/L2TabNav";
+import type { MusicFormPatch, MusicFormState } from "./configuration";
 
 interface MusicConfigurationPanelProps {
   form: MusicFormState;
@@ -29,13 +29,14 @@ export function MusicConfigurationPanel({
 }: MusicConfigurationPanelProps) {
   return (
     <Stack gap="sm">
-      <SegmentedControl
-        data={[
-          { value: "search", label: "搜索音乐" },
-          { value: "playlist", label: "下载歌单" }
+      <L2TabNav
+        items={[
+          { page: "search", label: "搜索音乐" },
+          { page: "playlist", label: "下载歌单" }
         ]}
         value={form.mode}
-        onChange={(mode) => onChange({ mode: mode as MusicMode })}
+        onChange={(mode) => onChange({ mode })}
+        aria-label="选择音乐下载模式"
       />
       {form.mode === "search" ? (
         <TextInput

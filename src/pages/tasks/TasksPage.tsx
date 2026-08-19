@@ -6,6 +6,7 @@
  */
 
 import { Badge, Box, Button, Card, Group, Stack, Text, Title } from "@mantine/core";
+import { IconTrash } from "@tabler/icons-react";
 import { notifications } from "../../lib/notifications";
 import { useEffect, useMemo, useState } from "react";
 import { CollapsibleSection } from "../../components/common/CollapsibleSection";
@@ -168,8 +169,10 @@ export function TasksPage({ onRerun }: TasksPageProps) {
               action={
                 <Button
                   size="compact-xs"
-                  variant="light"
+                  variant="transparent"
                   color="red"
+                  className="history-clear-all"
+                  leftSection={<IconTrash size={14} />}
                   onClick={() => deleteTasks(history.map((t) => t.id))}
                 >
                   全部删除

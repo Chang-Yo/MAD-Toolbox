@@ -209,6 +209,39 @@
     transform 280ms ease-in;
 }
 
+/* 任务卡「运行中/取消中」状态图标旋转 */
+.task-status-spinning {
+  animation: task-status-spin 0.8s linear infinite;
+}
+
+@keyframes task-status-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 任务卡右侧操作按钮：图标默认暗灰，悬浮统一深灰底（不取主题色）；
+   打开输出位置/删除在悬浮时图标分别变蓝/变红以提示动作性质 */
+.task-action {
+  color: var(--mantine-color-dimmed);
+}
+
+.task-action:hover {
+  background: var(--app-nav-hover-bg);
+}
+
+.task-action-open:hover {
+  color: var(--mantine-color-blue-filled);
+}
+
+.task-action-danger:hover {
+  color: var(--mantine-color-red-light-color);
+}
+
+.history-clear-all:hover {
+  background: var(--app-nav-hover-bg);
+}
+
 /* 注：刻意不跟随 prefers-reduced-motion——WebView2 会把 Windows
    「关闭动画效果 / 调整为最佳性能 / RDP 会话」映射为 reduce，
    曾导致本文件全部动效在部分环境下静默失效；

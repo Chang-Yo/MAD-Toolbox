@@ -1,5 +1,5 @@
 /**
- * 任务卡片：左边界按任务状态着色（颜色为冗余编码，状态徽章文字仍在）。
+ * 任务卡片：左边界与状态图标按任务状态着色。
  * 收起时只显示标题行（状态 + 名称 + 取消/日志/诊断/输出位置/删除）与状态进度条；
  * 展开后显示完整命令、置顶/重跑等上下文操作和失败日志尾部（§8 已定）。
  * 完整日志走 [打开日志]（shell 打开，壳不做查看器）。
@@ -7,7 +7,6 @@
 
 import {
   ActionIcon,
-  Badge,
   Button,
   Card,
   Code,
@@ -24,12 +23,19 @@ import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
 import {
   IconArrowUp,
+  IconCancel,
   IconChevronRight,
+  IconCircleCheck,
+  IconCircleX,
+  IconClock,
   IconFileDownload,
   IconFileText,
   IconFolderOpen,
+  IconLinkOff,
+  IconLoader,
   IconTrash,
-  IconX
+  IconX,
+  type Icon as TablerIcon
 } from "@tabler/icons-react";
 import { useState } from "react";
 import type { TaskEnvelope, TaskStatus } from "../../contracts/types";
@@ -37,14 +43,17 @@ import { isWindows } from "../../lib/platform";
 import type { TaskLogLine } from "../../stores/tasks.reducer";
 import { exportTaskDiagnostics } from "./api";
 
-const STATUS_META: Record<TaskStatus, { label: string; color: string }> = {
-  queued: { label: "排队中", color: "gray" },
-  running: { label: "运行中", color: "blue" },
-  canceling: { label: "取消中", color: "orange" },
-  success: { label: "成功", color: "green" },
-  failed: { label: "失败", color: "red" },
-  canceled: { label: "已取消", color: "gray" },
-  interrupted: { label: "中断", color: "yellow" }
+const STATUS_META: Record<
+  TaskStatus,
+  { label: string; color: string; icon: TablerIcon; spinning?: boolean }
+> = {
+  queued: { label: "排队中", color: "gray", icon: IconClock },
+  running: { label: "运行中", color: "orange", icon: IconLoader, spinning: true },
+  canceling: { label: "取消中", color: "orange", icon: IconLoader, spinning: true },
+  success: { label: "成功", color: "green", icon: IconCircleCheck },
+  failed: { label: "失败", color: "red", icon: IconCircleX },
+  canceled: { label: "已取消", color: "gray", icon: IconCancel },
+  interrupted: { label: "中断", color: "yellow", icon: IconLinkOff }
 };
 
 const FAILED_TAIL_LINES = 10;
@@ -88,6 +97,7 @@ function progressView(task: TaskEnvelope): ProgressView | null {
 export function TaskCard({ task, logs, onCancel, onPromote, onDelete, onRerun }: TaskCardProps) {
   const [opened, setOpened] = useState(false);
   const status = STATUS_META[task.status];
+  const StatusIcon = status.icon;
   const cancellable = task.status === "queued" || task.status === "running";
   const failedTail =
     task.status === "failed" && logs?.length ? logs.slice(-FAILED_TAIL_LINES) : null;
@@ -156,9 +166,14 @@ export function TaskCard({ task, logs, onCancel, onPromote, onDelete, onRerun }:
                 transition: "transform 150ms ease"
               }}
             />
-            <Badge color={status.color} variant="light" style={{ flexShrink: 0 }}>
-              {status.label}
-            </Badge>
+            <StatusIcon
+              size={16}
+              role="img"
+              aria-label={status.label}
+              color={`var(--mantine-color-${status.color}-light-color)`}
+              className={status.spinning ? "task-status-spinning" : undefined}
+              style={{ flexShrink: 0 }}
+            />
             <Text size="sm" fw={500} truncate>
               {task.title}
             </Text>
@@ -167,35 +182,60 @@ export function TaskCard({ task, logs, onCancel, onPromote, onDelete, onRerun }:
         <Group gap={4} wrap="nowrap">
           {cancellable && (
             <Tooltip label="取消">
-              <ActionIcon variant="subtle" color="red" onClick={() => onCancel(task.id)}>
-                <IconX size={16} color="var(--mantine-color-dimmed)" />
+              <ActionIcon
+                variant="transparent"
+                color="gray"
+                className="task-action"
+                onClick={() => onCancel(task.id)}
+              >
+                <IconX size={16} />
               </ActionIcon>
             </Tooltip>
           )}
           {task.logPath && (
             <Tooltip label="打开日志文件">
-              <ActionIcon variant="subtle" onClick={openLogFile}>
-                <IconFileText size={16} color="var(--mantine-color-dimmed)" />
+              <ActionIcon
+                variant="transparent"
+                color="gray"
+                className="task-action"
+                onClick={openLogFile}
+              >
+                <IconFileText size={16} />
               </ActionIcon>
             </Tooltip>
           )}
           {TERMINAL_STATUSES.has(task.status) && (
             <Tooltip label="导出诊断文件（脱敏）">
-              <ActionIcon variant="subtle" onClick={() => void exportDiagnostics()}>
-                <IconFileDownload size={16} color="var(--mantine-color-dimmed)" />
+              <ActionIcon
+                variant="transparent"
+                color="gray"
+                className="task-action"
+                onClick={() => void exportDiagnostics()}
+              >
+                <IconFileDownload size={16} />
               </ActionIcon>
             </Tooltip>
           )}
           {(task.outputPaths[0] || task.workingDir) && (
             <Tooltip label="打开输出位置">
-              <ActionIcon variant="subtle" onClick={revealOutput}>
-                <IconFolderOpen size={16} color="var(--mantine-color-dimmed)" />
+              <ActionIcon
+                variant="transparent"
+                color="gray"
+                className="task-action task-action-open"
+                onClick={revealOutput}
+              >
+                <IconFolderOpen size={16} />
               </ActionIcon>
             </Tooltip>
           )}
           {TERMINAL_STATUSES.has(task.status) && (
             <Tooltip label="删除任务">
-              <ActionIcon variant="subtle" color="red" onClick={() => onDelete(task.id)}>
+              <ActionIcon
+                variant="transparent"
+                color="gray"
+                className="task-action task-action-danger"
+                onClick={() => onDelete(task.id)}
+              >
                 <IconTrash size={16} />
               </ActionIcon>
             </Tooltip>

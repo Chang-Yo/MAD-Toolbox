@@ -2,7 +2,7 @@ import { Button, Group, Menu, Title } from "@mantine/core";
 import {
   IconChevronDown,
   IconCircleCheck,
-  IconDeviceFloppy,
+  IconBookDownload,
   IconPlayerPlay,
   IconQrcode
 } from "@tabler/icons-react";
@@ -84,7 +84,7 @@ export function BilibiliPageHeader({
             </Button>
           </Menu.Target>
           <Menu.Dropdown>
-            <Menu.Item leftSection={<IconDeviceFloppy size={14} />} onClick={onSaveTemplate}>
+            <Menu.Item leftSection={<IconBookDownload size={14} />} onClick={onSaveTemplate}>
               保存当前设置为模板
             </Menu.Item>
             {templates.length > 0 && <Menu.Divider />}

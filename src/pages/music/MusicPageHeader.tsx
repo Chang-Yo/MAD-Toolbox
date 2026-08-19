@@ -1,7 +1,7 @@
 import { Button, Group, Menu, Title } from "@mantine/core";
 import {
   IconChevronDown,
-  IconDeviceFloppy,
+  IconBookDownload,
   IconPlayerPlay,
   IconPlayerStop
 } from "@tabler/icons-react";
@@ -82,7 +82,7 @@ export function MusicPageHeader({
             </Button>
           </Menu.Target>
           <Menu.Dropdown>
-            <Menu.Item leftSection={<IconDeviceFloppy size={14} />} onClick={promptToSave}>
+            <Menu.Item leftSection={<IconBookDownload size={14} />} onClick={promptToSave}>
               保存当前设置为模板
             </Menu.Item>
             {templates.length > 0 ? <Menu.Divider /> : null}

@@ -5,6 +5,7 @@ import { Notifications } from "@mantine/notifications";
 import "@mantine/core/styles.css";
 import "@mantine/notifications/styles.css";
 import "@mantine/carousel/styles.css";
+import "./styles/tokens.css";
 import "./styles/fonts.css";
 import "./styles/animations.css";
 import "./styles/layout.css";

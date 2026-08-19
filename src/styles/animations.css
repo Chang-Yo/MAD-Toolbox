@@ -26,31 +26,18 @@
   height: clamp(22px, calc(0.7vw + 15px), 30px);
 }
 
-/* 顶栏选中高亮：白色底随激活态在整格 item 上淡入淡出（无滑移块），
-   激活图标取核心蓝。暗色主题用纯黑高亮，亮灰过白刺眼。 */
 .top-nav-item-active {
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
-  color: var(--mantine-color-blue-filled);
+  background: var(--app-nav-active-bg);
+  box-shadow: var(--app-nav-active-shadow);
+  color: var(--app-nav-active-icon);
 }
 
-[data-mantine-color-scheme="dark"] .top-nav-item-active {
-  background: #000;
-  box-shadow: none;
-  color: var(--mantine-color-blue-4);
-}
-
-/* 顶栏图标悬浮：在整格 item 上浮现浅灰底，色调向高亮底（白）靠拢，
-   点击切换时两者衔接自然；激活格已有高亮底，不再叠加。 */
-.top-nav .top-nav-item:not(.top-nav-item-active):hover,
+点击切换时两者衔接自然；激活格已有高亮底，不再叠加。
+  */
+  .top-nav
+  .top-nav-item:not(.top-nav-item-active):hover,
 .app-header-icon:hover {
-  background: var(--mantine-color-gray-2);
-}
-
-/* 暗色下高亮为纯黑，悬浮相应加深（黑）而非提亮 */
-[data-mantine-color-scheme="dark"] .top-nav .top-nav-item:not(.top-nav-item-active):hover,
-[data-mantine-color-scheme="dark"] .app-header-icon:hover {
-  background: rgba(0, 0, 0, 0.35);
+  background: var(--app-nav-hover-bg);
 }
 
 /* 全局 SegmentedControl：隐藏随选中项平移的指示条，改为激活段自身
@@ -64,12 +51,8 @@
 }
 
 .mantine-SegmentedControl-control[data-active] {
-  background: #fff;
+  background: var(--app-seg-active-bg);
   border-radius: var(--sc-radius, var(--mantine-radius-sm));
-}
-
-[data-mantine-color-scheme="dark"] .mantine-SegmentedControl-control[data-active] {
-  background: var(--mantine-color-dark-4);
 }
 
 /* 二级页签导航（设置分区 / 媒体工作流，L2TabNav）：外层带边框的大圆角容器、
@@ -91,22 +74,15 @@
 }
 
 .l2-tabnav .mantine-SegmentedControl-control:not([data-active]):hover {
-  background: var(--mantine-color-gray-1);
+  background: var(--app-seg-hover-bg);
 }
 
-[data-mantine-color-scheme="dark"]
-  .l2-tabnav
-  .mantine-SegmentedControl-control:not([data-active]):hover {
-  background: rgba(0, 0, 0, 0.35);
-}
-
-.l2-tabnav .mantine-SegmentedControl-control[data-active],
-[data-mantine-color-scheme="dark"] .l2-tabnav .mantine-SegmentedControl-control[data-active] {
+.l2-tabnav .mantine-SegmentedControl-control[data-active] {
   background: var(--mantine-color-blue-filled);
 }
 
 .l2-tabnav .mantine-SegmentedControl-control[data-active] .mantine-SegmentedControl-label {
-  color: #fff;
+  color: var(--mantine-color-white);
   font-weight: 500;
 }
 
@@ -118,41 +94,29 @@
 }
 
 .l2-tabnav .mantine-SegmentedControl-control[data-active] .l2-tabnav-count {
-  color: #ffd43b;
+  color: var(--app-tab-count-active);
 }
 
 /* 全局 chrome 画布：顶栏与工作区四周的底色。工作区面板向中间缩进后以此形成
-   层级——亮色取浅灰一档，暗色取 dark-8（比 body 底色的工作区面板更深）。 */
+   层级（亮浅灰一档 / 暗 dark-8，见 tokens.css）。 */
 .app-chrome {
-  background: var(--mantine-color-gray-1);
-}
-
-[data-mantine-color-scheme="dark"] .app-chrome {
-  background: var(--mantine-color-dark-8);
+  background: var(--app-surface-chrome);
 }
 
 /* 顶栏应用标题：Sinter 暂缺字体文件，先由 Arial 承接；
-   深蓝墨色与蓝色主题同调，暗色主题换浅蓝。 */
+   深蓝墨色与蓝色主题同调（暗色取值见 tokens.css）。 */
 .app-title {
   font-family: "Sinter", Arial, sans-serif;
   font-size: 22px;
   font-weight: 700;
   line-height: 1.2;
-  color: var(--mantine-color-blue-filled);
+  color: var(--app-title-color);
 }
 
-[data-mantine-color-scheme="dark"] .app-title {
-  color: var(--mantine-color-blue-3);
-}
-
-/* 工作区画布：亮色取 default 底色，暗色取 body 底色（#1D1D20，dark 色阶第 7 级），
+/* 工作区画布：亮色取 default 底色，暗色取 body 底色（dark 色阶第 7 级），
    保持与顶栏 chrome（dark-8）的层次 */
 .workspace-surface {
-  background: var(--mantine-color-default);
-}
-
-[data-mantine-color-scheme="dark"] .workspace-surface {
-  background: var(--mantine-color-body);
+  background: var(--app-surface-workspace);
 }
 
 /* 任务运行中的分区取绿色（沿袭 green-light-color），置于激活规则之后使其优先 */
@@ -250,27 +214,19 @@
    曾导致本文件全部动效在部分环境下静默失效；
    这些均为轻量微动效，保持常开。 */
 
-/* 关于页 slogan 中的「MADer」：蓝青渐变文字，暗色主题改用更浅色阶保证对比度。
-   注意两处都必须用 background-image 而非 background 简写——简写会重置 background-clip，
-   使 clip:text 失效（文字透明、渐变铺满整盒）。 */
+/* 关于页 slogan 中的「MADer」：蓝青渐变文字（暗色主题的更浅色阶取值见
+   tokens.css）。注意两处都必须用 background-image 而非 background 简写——
+   简写会重置 background-clip，使 clip:text 失效（文字透明、渐变铺满整盒）。 */
 .quote-hero-mark {
   font-weight: 700;
   background-image: linear-gradient(
     90deg,
-    var(--mantine-color-blue-6),
-    var(--mantine-color-cyan-4)
+    var(--app-quote-gradient-from),
+    var(--app-quote-gradient-to)
   );
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-}
-
-[data-mantine-color-scheme="dark"] .quote-hero-mark {
-  background-image: linear-gradient(
-    90deg,
-    var(--mantine-color-blue-4),
-    var(--mantine-color-cyan-3)
-  );
 }
 
 /* slogan 的装饰性引号与署名短线：引号放大且不随斜体倾斜，短线为细横线。 */

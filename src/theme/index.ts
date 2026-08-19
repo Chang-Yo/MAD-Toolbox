@@ -4,6 +4,7 @@ import { blue, dark } from "./colors";
 // 清爽基调：blue 主色只出现在激活态与主按钮，其余交给留白与细边框
 export const theme = createTheme({
   primaryColor: "blue",
+  primaryShade: { light: 6, dark: 6 },
   defaultRadius: "md",
   colors: {
     blue,

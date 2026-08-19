@@ -138,7 +138,7 @@ export function TaskCard({ task, logs, onCancel, onPromote, onDelete, onRerun }:
     <Card
       withBorder
       padding="sm"
-      style={{ borderLeft: `3px solid var(--mantine-color-${status.color}-5)` }}
+      style={{ borderLeft: `3px solid var(--mantine-color-${status.color}-filled)` }}
     >
       <Group justify="space-between" wrap="nowrap">
         <UnstyledButton

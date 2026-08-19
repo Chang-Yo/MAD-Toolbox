@@ -29,15 +29,7 @@
   padding-inline-start: var(--mantine-spacing-xs);
 }
 
-[data-mantine-color-scheme="light"] .app-notification {
-  --app-notification-title: #3f4043;
-  --app-notification-text: #4b4c50;
-}
-
-[data-mantine-color-scheme="dark"] .app-notification {
-  --app-notification-title: var(--mantine-color-dark-1);
-  --app-notification-text: var(--mantine-color-dark-2);
-}
+/* 文字色取 tokens.css 的 --app-notification-title/-text（亮暗成对定义） */
 
 /* 图标容器：Mantine 默认给 28px 圆形底（filled 语义色），与浅色底不协调，
    改为与通知条同底色（视觉上圆盘消失，仅剩图标本身） */
